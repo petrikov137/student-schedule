@@ -130,7 +130,7 @@ function StudentView() {
     return `${startDate.getDate()} / ${startDate.getMonth() + 1}`;
   }
 
-  if (loading) return <div style={{ color: 'white', marginTop: '310px' }}>عمار تاج راسك..</div>;
+  if (loading) return <div style={{ color: 'white', marginTop: '310px' }}>جارِ جلب الجدول..</div>;
 
   return (
     <div style={{ width: '100%', maxWidth: '600px', margin: '0 auto', padding: '0 0px' }}>

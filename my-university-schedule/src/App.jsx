@@ -5,12 +5,9 @@ import Admin from './Admin'
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<StudentView />} />
-        <Route path="/admin" element={<Admin />} />
-      </Routes>
-    </BrowserRouter>
+   <BrowserRouter basename="/student-schedule">
+   <App />
+</BrowserRouter>
   )
 }
 

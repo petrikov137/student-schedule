@@ -1,13 +1,18 @@
-// 2jsx;s
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { HashRouter, Routes, Route } from 'react-router-dom'
 import StudentView from './StudentView'
 import Admin from './Admin'
 
 function App() {
   return (
-   <BrowserRouter basename="/student-schedule">
-   <App />
-</BrowserRouter>
+    <HashRouter>
+      <Routes>
+        {/* الرابط الرئيسي لصفحة الجدول */}
+        <Route path="/" element={<StudentView />} />
+        
+        {/* رابط صفحة الأدمن */}
+        <Route path="/admin" element={<Admin />} />
+      </Routes>
+    </HashRouter>
   )
 }
 

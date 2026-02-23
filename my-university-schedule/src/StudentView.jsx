@@ -20,12 +20,24 @@ function StudentView() {
   const [hoveredWeek, setHoveredWeek] = useState(null);
   const [forceRender, setForceRender] = useState(0); 
 
-  useEffect(() => {
+ useEffect(() => {
+    // 1. محاولة استرجاع البيانات من ذاكرة المتصفح أولاً (للعمل بدون إنترنت)
+    const cachedData = localStorage.getItem('offline_schedule_data');
+    if (cachedData) {
+      setAllScheduleData(JSON.parse(cachedData));
+      setLoading(false); // إخفاء شاشة التحميل وعرض الجدول القديم فوراً
+    }
+
+    // 2. الاتصال بقاعدة البيانات لجلب التحديثات الجديدة
     const dataRef = ref(database, '/');
     onValue(dataRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) setAllScheduleData(data);
-      setLoading(false);
+      if (data) {
+        setAllScheduleData(data);
+        setLoading(false);
+        // 3. حفظ النسخة الجديدة في الذاكرة للمرات القادمة
+        localStorage.setItem('offline_schedule_data', JSON.stringify(data));
+      }
     });
 
     const calculateCurrentWeek = () => {

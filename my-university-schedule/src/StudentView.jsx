@@ -430,7 +430,7 @@ function StudentView() {
                 }}
               >
                 <h2 style={{ margin: 0, textAlign: 'center' }}>{weeks[currentWeek]}</h2>
-                <span style={{ opacity: 0.5, fontSize: '14px' }}>🎨</span>
+                <span style={{ opacity: 0.5, fontSize: '14px' }}> </span>
               </div>
 
               {/* 🌟 حاوية أزرار الثيمات (يطبق عليها الـ Zoom-in/Fade-in) ككتلة واحدة 🌟 */}

@@ -1,5 +1,5 @@
 import Header from './Header';
-import { useState, useEffect, useCallback, useRef } from 'react' // 🌟 تمت إضافة useRef هنا
+import { useState, useEffect, useCallback, useRef } from 'react' 
 import { database } from './firebase'
 import { ref, onValue } from 'firebase/database'
 import localforage from 'localforage'; 
@@ -72,7 +72,6 @@ function StudentView() {
     "قواعد بيانات موزعة", 
     "معمارية الحاسوب", 
     "اللغة الانكليزية",
-    "SE | PowePoint Version",
   ];
   
   const [allScheduleData, setAllScheduleData] = useState({});
@@ -91,14 +90,16 @@ function StudentView() {
   const [heartBursts, setHeartBursts] = useState([]);
   const [bubbleBursts, setBubbleBursts] = useState([]);
 
-  // --- نظام الثيمات ---------------------------------------------------------------------------------------------------------------
+  // --- نظام الثيمات ---
   const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'dark');
   const [showThemes, setShowThemes] = useState(false);
   const [hoveredTheme, setHoveredTheme] = useState(null);
   const [pressedTheme, setPressedTheme] = useState(null);
 
-  // 🌟 إضافة المرجع لشريط الأسابيع لاكتشاف النقر خارجه 🌟
   const themesBoxRef = useRef(null);
+
+  // 🌟 مرجع المؤقت لزر الأدمن السري 🌟
+  const adminPressTimer = useRef(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -114,7 +115,6 @@ function StudentView() {
     }
   }, [theme]);
 
-  // 🌟 كود إخفاء الأزرار عند الضغط في أي مكان خارج الشريط 🌟
   useEffect(() => {
     function handleClickOutside(event) {
       if (themesBoxRef.current && !themesBoxRef.current.contains(event.target)) {
@@ -123,7 +123,7 @@ function StudentView() {
     }
     
     document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("touchstart", handleClickOutside); // لدعم الشاشات اللمسية
+    document.addEventListener("touchstart", handleClickOutside); 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("touchstart", handleClickOutside);
@@ -135,6 +135,21 @@ function StudentView() {
     setTheme(selectedTheme);
     setTimeout(() => setShowThemes(false), 250); 
   };
+
+  // 🌟 وظائف الزر السري (دخول الأدمن بعد 4 ثوانٍ) 🌟
+  const handleAdminSecretStart = () => {
+    adminPressTimer.current = setTimeout(() => {
+      // التوجه للأدمن مع مراعاة مسار المشروع الحالي
+      window.location.href = window.location.pathname.includes('student-schedule') 
+        ? '/student-schedule/#/admin' 
+        : '/admin';
+    }, 4000); // 4 ثوانٍ
+  };
+
+  const handleAdminSecretEnd = () => {
+    if (adminPressTimer.current) clearTimeout(adminPressTimer.current);
+  };
+
   // ----------------------------------------------------------------------------------------------------------
 
   useEffect(() => {
@@ -411,21 +426,27 @@ function StudentView() {
           <div key={currentWeek} className="week-animate">
             <div 
               className="week-bar-box"
-              ref={themesBoxRef} // 🌟 إضافة الـ ref هنا لالتقاط النقرات الخارجية 🌟
+              ref={themesBoxRef} 
               style={{ 
                 backgroundColor: 'var(--primary-color)', color: 'var(--text-pure)', borderRadius: '10px', marginBottom: '30px', height: '64px',
                 position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
                 boxShadow: '0 4px 15px rgba(0,0,0,0.15)', transition: 'background-color 0.4s ease', WebkitTapHighlightColor: 'transparent'
               }}
             >
-              {/* 🌟 حاوية عنوان الأسبوع (يطبق عليها الـ Zoom-out/Fade-out) 🌟 */}
               <div 
+                // 🌟 دمج وظيفة الضغط العادي والمطول 🌟
                 onClick={() => setShowThemes(!showThemes)}
+                onMouseDown={handleAdminSecretStart}
+                onMouseUp={handleAdminSecretEnd}
+                onMouseLeave={handleAdminSecretEnd}
+                onTouchStart={handleAdminSecretStart}
+                onTouchEnd={handleAdminSecretEnd}
+                onContextMenu={(e) => e.preventDefault()} // منع ظهور قائمة الموبايل عند الضغط المطول
                 style={{
                   position: 'absolute', width: '100%', height: '100%', cursor: 'pointer',
-                  transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', // 🌟 نفس تأثير الهيدر
-                  transform: showThemes ? 'scale(0.3)' : 'scale(1)', // 🌟 Zoom effect
-                  opacity: showThemes ? 0 : 1, // 🌟 Fade effect
+                  transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
+                  transform: showThemes ? 'scale(0.3)' : 'scale(1)', 
+                  opacity: showThemes ? 0 : 1, 
                   pointerEvents: showThemes ? 'none' : 'auto', 
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                 }}
@@ -434,12 +455,11 @@ function StudentView() {
                 <span style={{ opacity: 0.5, fontSize: '14px' }}> </span>
               </div>
 
-              {/* 🌟 حاوية أزرار الثيمات (يطبق عليها الـ Zoom-in/Fade-in) ككتلة واحدة 🌟 */}
               <div style={{
                 position: 'absolute', display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '15px', width: '100%', padding: '0 5px',
-                transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', // 🌟 نفس تأثير الهيدر
-                transform: showThemes ? 'scale(1)' : 'scale(0.3)', // 🌟 Zoom in
-                opacity: showThemes ? 1 : 0, // 🌟 Fade in
+                transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
+                transform: showThemes ? 'scale(1)' : 'scale(0.3)', 
+                opacity: showThemes ? 1 : 0, 
                 pointerEvents: showThemes ? 'auto' : 'none'
               }}>
                 {[
@@ -449,7 +469,6 @@ function StudentView() {
                   const isHovered = hoveredTheme === t.id;
                   const isPressed = pressedTheme === t.id;
                   let btnScale = 1;
-                  // 🌟 التأثير هنا يقتصر على تكبير الزر عند لمسه أو المرور عليه فقط 🌟
                   if (isPressed) { btnScale = 0.9; } else if (isHovered) { btnScale = 1.15; }
 
                   return (
@@ -457,7 +476,7 @@ function StudentView() {
                       key={t.id} 
                       onClick={(e) => { 
                         handleThemeSelect(t.id, e); 
-                        setShowThemes(false); // 🌟 إغلاق القائمة بعد الاختيار
+                        setShowThemes(false); 
                       }} 
                       onMouseEnter={() => setHoveredTheme(t.id)}
                       onMouseLeave={() => { setHoveredTheme(null); setPressedTheme(null); }}

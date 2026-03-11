@@ -72,6 +72,7 @@ function StudentView() {
     "قواعد بيانات موزعة", 
     "معمارية الحاسوب", 
     "اللغة الانكليزية",
+    "هندسة البرمجيات | نظري |  PowerPoint",
   ];
   
   const [allScheduleData, setAllScheduleData] = useState({});

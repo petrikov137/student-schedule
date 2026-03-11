@@ -1,0 +1,293 @@
+/* --- src/themes.css --- */
+
+/* 1. الثيم الداكن (الافتراضي) */
+:root {
+  --bg-gradient: linear-gradient(135deg, #141414 0%, #1a1a1a 70%); 
+  --text-main: rgba(255, 255, 255, 0.87); 
+  --text-pure: white; 
+  --text-details: #aaa; 
+  --text-muted: #aaa; 
+  --primary-color: #208de7b0; 
+  --card-bg-normal: #333333; 
+  --card-bg-locked: #2a2a2a; 
+  --card-bg-expanded: #2e4d96; 
+  --card-bg-hover: #4b6cb7; 
+  --dot-bg: #555555;                
+  --dot-active: #2195f3f2; 
+  --subj-name: #1cd10b; 
+  --note-title: #ffeb3b; 
+  --notify-1: #2a2a2a; 
+  --notify-2: #444444; 
+  --notify-3: #555555; 
+  --border-line: rgba(255,255,255,0.1); 
+}
+
+/* 2. الثيم الفاتح (النهاري) */
+[data-theme='light'] {
+  --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
+  --text-main: #333333; 
+  --text-pure: #111111; 
+  --text-details: #666666; 
+  --text-muted: #666666; 
+  --primary-color: #0056b3; 
+  --card-bg-normal: #ffffff; 
+  --card-bg-locked: #e0e0e0; 
+  --card-bg-expanded: #d0e1ff; 
+  --card-bg-hover: #e6f0ff; 
+  --dot-bg: #cccccc; 
+  --dot-active: #0056b3; 
+  --subj-name: #008000; 
+  --note-title: #d97706; 
+  --notify-1: #e0e0e0; 
+  --notify-2: #f0f0f0; 
+  --notify-3: #ffffff; 
+  --border-line: rgba(0,0,0,0.1); 
+}
+
+/* 3. ثيم القهوة (Dark Roast Espresso) */
+[data-theme='coffee'] {
+  --bg-gradient: linear-gradient(135deg, #1f1410 0%, #140d0a 100%); 
+  --text-main: #f0e0d0; 
+  --text-pure: #ffffff; 
+  --text-details: #a68a72; 
+  --text-muted: #a68a72; 
+  --primary-color: #d28c47; 
+  --card-bg-normal: #36241b; 
+  --card-bg-locked: #1c120e; 
+  --card-bg-expanded: #4a3224; 
+  --card-bg-hover: #422d20; 
+  --dot-bg: #36241b; 
+  --dot-active: #d28c47; 
+  --subj-name: #e5b078; 
+  --note-title: #f2c79b; 
+  --notify-1: #1c120e; 
+  --notify-2: #36241b; 
+  --notify-3: #4a3224; 
+  --border-line: rgba(210, 140, 71, 0.25); 
+}
+
+/* 4. ثيم المحيط (Bioluminescent Abyss) */
+[data-theme='ocean'] {
+  --bg-gradient: linear-gradient(135deg, #000c18 0%, #001a33 50%, #002b52 100%); 
+  --text-main: #b3e0ff; 
+  --text-pure: #ffffff; 
+  --text-details: #66b3ff; 
+  --text-muted: #66b3ff; 
+  --primary-color: #0094f7; 
+  --card-bg-normal: #002240; 
+  --card-bg-locked: #001120; 
+  --card-bg-expanded: #003366; 
+  --card-bg-hover: #002b52; 
+  --dot-bg: #002240; 
+  --dot-active: #0094f7; 
+  --subj-name: #00ffcc; 
+  --note-title: #ffb366; 
+  --notify-1: #001120; 
+  --notify-2: #002240; 
+  --notify-3: #003366; 
+  --border-line: rgba(0, 229, 255, 0.25); 
+}
+
+/* 5. ثيم الغسق (Twilight) */
+[data-theme='twilight'] {
+  --bg-gradient: linear-gradient(135deg, #170f23 0%, #2d1b4e 100%); 
+  --text-main: #e9d5ff; 
+  --text-pure: #ffffff; 
+  --text-details: #a78bfa; 
+  --text-muted: #a78bfa; 
+  --primary-color: #9333ea; 
+  --card-bg-normal: #2e1065; 
+  --card-bg-locked: #1b0a3a; 
+  --card-bg-expanded: #4c1d95; 
+  --card-bg-hover: #5b21b6; 
+  --dot-bg: #4c1d95; 
+  --dot-active: #c084fc; 
+  --subj-name: #2dd4bf; 
+  --note-title: #f472b6; 
+  --notify-1: #1b0a3a; 
+  --notify-2: #2e1065; 
+  --notify-3: #4c1d95; 
+  --border-line: rgba(255,255,255,0.1); 
+}
+
+/* 6. ثيم الزجاج السائل الشامل (VisionOS Glassmorphism) */
+[data-theme='glass'] {
+  --bg-gradient: linear-gradient(135deg, #090a0f 0%, #14151a 100%) !important;
+  --text-main: rgba(255, 255, 255, 0.85);
+  --text-pure: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.4);
+  --event-text: #ffffff;
+  --border-line: rgba(255, 255, 255, 0.05);
+}
+[data-theme='glass']::before {
+  content: ""; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 0;
+  background: 
+    radial-gradient(circle at 15% 20%, rgba(0, 229, 255, 0.35) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(189, 0, 255, 0.35) 0%, transparent 40%);
+}
+[data-theme='glass'] .week-bar-box,
+[data-theme='glass'] .day-card,
+[data-theme='glass'] .nav-btn {
+  position: relative; z-index: 1;
+  background: rgba(255, 255, 255, 0.03) !important; 
+  backdrop-filter: blur(24px) saturate(180%) !important; 
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.3) !important; 
+  border-left: 1px solid rgba(255, 255, 255, 0.15) !important; 
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.3), inset 0 -1px 2px rgba(0, 0, 0, 0.5) !important; 
+  transform: translateZ(0); 
+  will-change: transform, backdrop-filter;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, max-height 1.3s ease, opacity 0.7s ease !important;
+}
+[data-theme='glass'] .day-card { border-radius: 20px !important; }
+[data-theme='glass'] .day-card.expanded { background: rgba(255, 255, 255, 0.05) !important; }
+[data-theme='glass'] .day-card:hover,
+[data-theme='glass'] .day-card.expanded:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.5) !important;
+}
+[data-theme='glass'] .subject-inner-card {
+  background: rgba(0, 0, 0, 0.25) !important; 
+  border: 1px solid rgba(255, 255, 255, 0.03) !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.5) !important; 
+  box-shadow: inset 0 5px 15px rgba(0,0,0,0.3) !important;
+  border-radius: 14px !important; backdrop-filter: none !important; 
+}
+[data-theme='glass'] .nav-btn { border-radius: 12px !important; padding: 10px 20px !important; }
+[data-theme='glass'] .nav-btn:hover { background: rgba(255, 255, 255, 0.15) !important; transform: translateY(-2px); }
+[data-theme='glass'] .dot { background: rgba(255, 255, 255, 0.1) !important; border: 1px solid rgba(255, 255, 255, 0.3) !important; box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important; }
+[data-theme='glass'] .dot.active { background: #00e5ff !important; box-shadow: 0 0 15px #00e5ff, 0 0 30px #00e5ff !important; border: none !important; }
+[data-theme='glass'] .day-card, [data-theme='glass'] .subject-inner-card { border-right: 1px solid rgba(255, 255, 255, 0.05) !important; }
+
+/* 7. ثيم القلوب */
+[data-theme='hearts'] {
+  --bg-gradient: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+  --text-main: #9f1239; 
+  --text-pure: #4c0519;
+  --text-details: #fda4af;
+  --text-muted: #fb7185;
+  --primary-color: #fda4af;
+  --card-bg-normal: #ffffff;
+  --card-bg-locked: #fff1f2;
+  --card-bg-expanded: #ffe4e6;
+  --card-bg-hover: #fff1f2;
+  --dot-bg: #fecdd3;
+  --dot-active: #e11d48; 
+  --subj-name: #db2777;
+  --note-title: #be123c;
+  --notify-1: #fff1f2;
+  --notify-2: #ffe4e6;
+  --notify-3: #ffffff;
+  --border-line: rgba(225, 29, 72, 0.1);
+}
+
+/* 8. ثيم المصفوفة */
+[data-theme='matrix'] {
+  --bg-gradient: linear-gradient(180deg, #000000 0%, #000500 100%);
+  --text-main: #00ff41; 
+  --text-pure: #ffffff;
+  --text-muted: #003b00;     
+  --text-details: #00ff41;     
+  --primary-color: #008f11;
+  --card-bg-normal: #000a00;
+  --card-bg-locked: #000500;
+  --card-bg-expanded: #001a00;
+  --card-bg-hover: #001100;
+  --dot-bg: #003b00;
+  --dot-active: #00ff41;
+  --subj-name: #00ff41;
+  --note-title: #ffffff;
+  --notify-1: #000500;
+  --notify-2: #001a00;
+  --notify-3: #000a00;
+  --border-line: rgba(0, 255, 65, 0.2);
+}
+
+/* 3-light. ثيم القهوة */
+[data-theme='coffee-light'] {
+  --bg-gradient: linear-gradient(135deg, #f5ece5 0%, #e6d5c3 100%);
+  --text-main: #4a3b32;
+  --text-pure: #2d241e;
+  --text-details: #8b7355;
+  --text-muted: #8b7355;
+  --primary-color: #8b5a2b;
+  --card-bg-normal: #ffffff;
+  --card-bg-locked: #e2d5c8;
+  --card-bg-expanded: #d4c1af;
+  --card-bg-hover: #ebdcd0;
+  --dot-bg: #d1c0b1;
+  --dot-active: #8b5a2b;
+  --subj-name: #2e8b57;
+  --note-title: #b85d19;
+  --notify-1: #e2d5c8;
+  --notify-2: #f5ece5;
+  --notify-3: #ffffff;
+  --border-line: rgba(0,0,0,0.08);
+}
+
+/* 4-light. ثيم المحيط */
+[data-theme='ocean-light'] {
+  --bg-gradient: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  --text-main: #0c4a6e;
+  --text-pure: #082f49;
+  --text-details: #0369a1;
+  --text-muted: #7dd3fc;
+  --primary-color: #0284c7;
+  --card-bg-normal: #ffffff;
+  --card-bg-locked: #f0f9ff;
+  --card-bg-expanded: #e0f2fe;
+  --card-bg-hover: #f8fafc;
+  --dot-bg: #bae6fd;
+  --dot-active: #0284c7;
+  --subj-name: #0d9488;
+  --note-title: #d97706;
+  --notify-1: #f0f9ff;
+  --notify-2: #e0f2fe;
+  --notify-3: #ffffff;
+  --border-line: rgba(2, 132, 199, 0.15);
+}
+
+/* 5-light. ثيم الغسق */
+[data-theme='twilight-light'] {
+  --bg-gradient: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+  --text-main: #4c1d95;
+  --text-pure: #3b0764;
+  --text-details: #6b21a8;
+  --text-muted: #d8b4fe;
+  --primary-color: #7e22ce;
+  --card-bg-normal: #ffffff;
+  --card-bg-locked: #faf5ff;
+  --card-bg-expanded: #f3e8ff;
+  --card-bg-hover: #ffffff;
+  --dot-bg: #e9d5ff;
+  --dot-active: #7e22ce;
+  --subj-name: #059669;
+  --note-title: #db2777;
+  --notify-1: #faf5ff;
+  --notify-2: #f3e8ff;
+  --notify-3: #ffffff;
+  --border-line: rgba(126, 34, 206, 0.15);
+}
+
+/* 7-dark. ثيم القلوب */
+[data-theme='hearts-dark'] {
+  --bg-gradient: linear-gradient(135deg, #4c0519 0%, #28020d 100%);
+  --text-main: #fda4af;
+  --text-pure: #ffe4e6;
+  --text-details: #fb7185;
+  --text-muted: #881337;
+  --primary-color: #f43f5e;
+  --card-bg-normal: #881337;
+  --card-bg-locked: #4c0519;
+  --card-bg-expanded: #be123c;
+  --card-bg-hover: #9f1239;
+  --dot-bg: #881337;
+  --dot-active: #f43f5e;
+  --subj-name: #fdf2f8;
+  --note-title: #fca5a5;
+  --notify-1: #4c0519;
+  --notify-2: #881337;
+  --notify-3: #be123c;
+  --border-line: rgba(244, 63, 94, 0.2);
+}

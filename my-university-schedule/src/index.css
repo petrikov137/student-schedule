@@ -1,20 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap');
+
+@import './themes.css'; /* استيراد الثيمات */
 
 html { overflow-y: scroll; }
-
-:root {
-  font-family: 'Tajawal', sans-serif;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-  direction: rtl;
-}
 
 body {
   margin: 0;
   display: block;
   min-height: 100vh;
-  background: linear-gradient(135deg, #141414 0%,#1a1a1a  70%);
+  direction: rtl;
+  line-height: 1.5;
+  
+  font-family: 'Cairo', sans-serif;
+
+  
+  /* تفعيل المتغيرات */
+  color: var(--text-main);
+  background: var(--bg-gradient);
+  transition: background 0.4s ease, color 0.4s ease;
 }
 
 #root {
@@ -27,37 +30,33 @@ body {
 /* Cards */
 .day-card {
   cursor: pointer;
-  background-color: #2c3e50;
-  color: white;
+  color: var(--text-pure);
   border: 1px solid transparent;
   border-radius: 12px;
   padding: 0 15px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   overflow: hidden;
-  /*Speed*/
   transition: all 0.2s ease-in-out;
   position: relative; 
 }
 
-/*card ani*/
 .day-card:hover {
-  background-color: #4b6cb7; 
+  background-color: var(--card-bg-hover) !important; 
   transform: scale(1.03); 
   box-shadow: 0 8px 16px rgba(0,0,0,0.3); 
-  border-color: rgba(255,255,255,0.3);
+  border-color: var(--border-line);
   z-index: 1;
 }
 
-/* Click*/
 .day-card.expanded {
-  background-color: #2e4d96;
-  border: px solid #ffffff;
+  background-color: var(--card-bg-expanded) !important;
+  border: 1px solid var(--border-line);
   box-shadow: 0 8px 16px rgba(0,0,0,0.3);
   transform: scale(1.02); 
   z-index: 2;
 }
 
-/* --- 🔵 --- */
+/* Dots */
 .dots-container {
   display: flex;
   align-items: center;
@@ -69,23 +68,23 @@ body {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background-color: #555;
+  background-color: var(--dot-bg);
   cursor: pointer;
   transition: all 0.3s ease;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid var(--border-line);
 }
 
 .dot.active {
-  background-color: #2195f3f2;  /* Selected Point color*/
+  background-color: var(--dot-active);
   transform: scale(1.3);
   border: none;
 }
 
 .dot:hover {
-  background-color: #777;
+  filter: brightness(1.2);
 }
 
-/* --- Buttons --- */
+/* Buttons */
 @keyframes ripple-animation {
   0% { width: 0; height: 0; opacity: 0.5; }
   100% { width: 350px; height: 350px; opacity: 0; }
@@ -104,7 +103,8 @@ button {
   z-index: 1;
   transition: transform 0.1s;
   box-shadow: none !important;
-  color: white;
+  color: var(--text-pure);
+  background-color: var(--primary-color);
 }
 
 button::after {
@@ -136,3 +136,68 @@ button:active {
 .week-animate {
   animation: fadeSlideUp 0.5s ease-out;
 }
+
+/* أنيميشن التنبيه المحدث ليتوافق مع المتغيرات */
+@keyframes gradientFadeMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* 🕵️ نظام هطول الأمطار الرقمية للماتركس */
+[data-theme='matrix']::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  pointer-events: none;
+  
+  /* توليد مصفوفة أرقام عشوائية باستخدام تدرج نصي متكرر */
+  background-image: 
+    linear-gradient(rgba(0, 255, 65, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.1) 1px, transparent 1px);
+  background-size: 30px 30px; /* حجم الشبكة الأساسية */
+  
+  /* إضافة طبقة الأرقام الوهمية عبر قناع نصي */
+  background: 
+    radial-gradient(circle, rgba(0,255,65,0.08) 0%, transparent 80%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Ctext x='10' y='30' fill='rgba(0,255,65,0.2)' font-family='monospace' font-size='12'%3E1010%3C/text%3E%3Ctext x='50' y='70' fill='rgba(0,255,65,0.1)' font-family='monospace' font-size='18'%3E01%3C/text%3E%3Ctext x='80' y='20' fill='rgba(0,255,65,0.15)' font-family='monospace' font-size='14'%3E110%3C/text%3E%3C/svg%3E");
+  
+  animation: matrixFlow 30s linear infinite;
+  opacity: 0.6;
+}
+
+/* طبقة ثانية بأحجام وسرعات مختلفة لخلق عمق (Parallax Effect) */
+[data-theme='matrix']::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Ctext x='20' y='50' fill='rgba(0,255,65,0.05)' font-family='monospace' font-size='25'%3E0101%3C/text%3E%3Ctext x='100' y='120' fill='rgba(0,255,65,0.03)' font-family='monospace' font-size='40'%3E10%3C/text%3E%3C/svg%3E");
+  animation: matrixFlow 45s linear infinite reverse; /* سرعة أبطأ واتجاه معاكس */
+  pointer-events: none;
+}
+
+@keyframes matrixFlow {
+  from { background-position: 0 0; }
+  to { background-position: 0 1000px; } /* الهطول للأسفل ببطء */
+}
+
+/* تحسين شكل البطاقات في الماتركس لتكون شفافة بحدود خضراء مشعة */
+[data-theme='matrix'] .day-card {
+  background-color: rgba(0, 10, 0, 0.85) !important;
+  border: 1px solid rgba(0, 255, 65, 0.15) !important;
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.05);
+}
+/* خاصية الزجاج (iPhone style) */
+[data-theme='glass'] .day-card {
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+}
+

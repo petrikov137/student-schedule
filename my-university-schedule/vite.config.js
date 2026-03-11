@@ -25,4 +25,11 @@ export default defineConfig({
     })
   ],
   base: '/student-schedule/',
+  
+  // 🌟 هذا هو القسم الجديد للسماح بروابط النفق (localtunnel) 🌟
+  server: {
+    allowedHosts: [
+      '.loca.lt' // يسمح لأي رابط ينتهي بـ loca.lt لتجنب تعديله في كل مرة يتغير فيها الرابط
+    ]
+  }
 })

@@ -72,6 +72,8 @@ function StudentView() {
     "قواعد بيانات موزعة", 
     "معمارية الحاسوب", 
     "اللغة الانكليزية",
+    "SE | PowePoint Version",
+
   ];
   
   const [allScheduleData, setAllScheduleData] = useState({});
@@ -98,8 +100,9 @@ function StudentView() {
 
   const themesBoxRef = useRef(null);
 
-  // 🌟 مرجع المؤقت لزر الأدمن السري 🌟
+  // 🌟 مفاتيح السيطرة على الضغط المطول 🌟
   const adminPressTimer = useRef(null);
+  const [isLongPressActive, setIsLongPressActive] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -136,18 +139,28 @@ function StudentView() {
     setTimeout(() => setShowThemes(false), 250); 
   };
 
-  // 🌟 وظائف الزر السري (دخول الأدمن بعد 4 ثوانٍ) 🌟
-  const handleAdminSecretStart = () => {
+  const handleAdminSecretStart = (e) => {
+    setIsLongPressActive(false);
     adminPressTimer.current = setTimeout(() => {
-      // التوجه للأدمن مع مراعاة مسار المشروع الحالي
-      window.location.href = window.location.pathname.includes('student-schedule') 
-        ? '/student-schedule/#/admin' 
-        : '/admin';
-    }, 4000); // 4 ثوانٍ
+      setIsLongPressActive(true);
+      
+      const currentUrl = window.location.href;
+      if (currentUrl.includes('student-schedule')) {
+          window.location.href = window.location.origin + '/student-schedule/#/admin';
+      } else {
+          window.location.href = window.location.origin + '/#/admin';
+      }
+    }, 4000); 
   };
 
   const handleAdminSecretEnd = () => {
     if (adminPressTimer.current) clearTimeout(adminPressTimer.current);
+  };
+
+  const handleHeaderClick = () => {
+    if (!isLongPressActive) {
+      setShowThemes(!showThemes);
+    }
   };
 
   // ----------------------------------------------------------------------------------------------------------
@@ -220,14 +233,24 @@ function StudentView() {
       const dotElement = document.getElementById(`dot-${weekIndexToBurst}`);
       if (dotElement) {
         const rect = dotElement.getBoundingClientRect();
-        const burstX = rect.left + rect.width / 2;
-        const burstY = rect.top + rect.height / 2;
-        const newBurst = { id: Date.now() + Math.random(), x: burstX, y: burstY };
+        
+        // 🌟 إصلاح الخلل: حساب نسبة الزووم وإلغاء تأثيرها العكسي في إحداثيات الهواتف 🌟
+        let zoomFactor = 1;
+        const container = document.querySelector('.main-container');
+        if (container) {
+          const computedZoom = window.getComputedStyle(container).zoom;
+          if (computedZoom && computedZoom !== 'normal') {
+            zoomFactor = parseFloat(computedZoom);
+          }
+        }
 
-        if (isOceanTheme) {
-            setBubbleBursts(prev => [...prev, newBurst]);
-            setTimeout(() => setBubbleBursts(prev => prev.filter(b => b.id !== newBurst.id)), 400); 
-        } 
+        // 🌟 حساب المركز الهندسي الدقيق للنقطة مقسوماً على الزووم لضبط الموقع بدقة متناهية 🌟
+        const burstX = (rect.left + (rect.width / 2)) / zoomFactor;
+        const burstY = (rect.top + (rect.height / 2)) / zoomFactor;
+
+        const newBurst = { id: Date.now() + Math.random(), x: burstX, y: burstY };
+        setBubbleBursts(prev => [...prev, newBurst]);
+        setTimeout(() => setBubbleBursts(prev => prev.filter(b => b.id !== newBurst.id)), 400); 
       }
     }
   }, [theme]);
@@ -434,14 +457,13 @@ function StudentView() {
               }}
             >
               <div 
-                // 🌟 دمج وظيفة الضغط العادي والمطول 🌟
-                onClick={() => setShowThemes(!showThemes)}
+                onClick={handleHeaderClick}
                 onMouseDown={handleAdminSecretStart}
                 onMouseUp={handleAdminSecretEnd}
                 onMouseLeave={handleAdminSecretEnd}
                 onTouchStart={handleAdminSecretStart}
                 onTouchEnd={handleAdminSecretEnd}
-                onContextMenu={(e) => e.preventDefault()} // منع ظهور قائمة الموبايل عند الضغط المطول
+                onContextMenu={(e) => e.preventDefault()} 
                 style={{
                   position: 'absolute', width: '100%', height: '100%', cursor: 'pointer',
                   transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 

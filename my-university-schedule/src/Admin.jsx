@@ -11,7 +11,6 @@ function Admin() {
   ];
   const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس"];
   
-  // 🌟 القائمة المفصلة (خاصة بقسم الملازم) 🌟
   const materialsSubjects = [
     "برمجة كائنية  |   نظري", 
     "برمجة كائنية  |   عملي",
@@ -25,7 +24,6 @@ function Admin() {
     "SE | PowePoint Version",
   ];
 
-  // 🌟 القائمة العامة (خاصة بالإضافة داخل الجدول فقط) 🌟
   const scheduleSubjects = [
     "البرمجة الكائنية", 
     "هياكل البيانات 2", 
@@ -62,6 +60,10 @@ function Admin() {
   const [toast, setToast] = useState({ show: false, message: '' });
   
   const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // 🌟 حالات الإشعار المخصص 🌟
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifBody, setNotifBody] = useState('');
 
   const showNotification = (msg) => {
     setToast({ show: true, message: msg });
@@ -149,6 +151,23 @@ function Admin() {
     } catch (error) { showNotification("فشل التغيير: " + error.message); }
   };
 
+  // 🌟 دالة إرسال الإشعار المخصص 🌟
+  const sendCustomNotification = async () => {
+    if (!notifTitle.trim() || !notifBody.trim()) return showNotification("⚠️ الرجاء كتابة عنوان وتفاصيل الإشعار!");
+    try {
+      await update(ref(database, '/'), {
+        latest_notification: {
+          title: notifTitle,
+          body: notifBody,
+          timestamp: Date.now()
+        }
+      });
+      showNotification("✅ تم إرسال الإشعار لجميع الطلاب المتاحين!");
+      setNotifTitle('');
+      setNotifBody('');
+    } catch (error) { showNotification("❌ فشل إرسال الإشعار"); }
+  };
+
   const nextWeek = () => { setSelectedDay(null); setCurrentWeek(prev => prev < weeks.length - 1 ? prev + 1 : 0); }
   const prevWeek = () => { setSelectedDay(null); setCurrentWeek(prev => prev > 0 ? prev - 1 : weeks.length - 1); }
 
@@ -180,7 +199,17 @@ function Admin() {
     if (subjectsList.some(sub => sub.name.trim() === "")) return showNotification("⚠️ يرجى اختيار اسم المادة لجميع الحقول!");
     try {
       await update(ref(database, `week_${currentWeek}/${selectedDay}`), { subjects: subjectsList, isOpen: isDayOpen === true, isExam: isExam === true, lastUpdated: Date.now() });
-      showNotification("✅ تم حفظ التغييرات");
+      
+      // 🌟 إرسال إشعار تلقائي للطلاب بتحديث الجدول 🌟
+      await update(ref(database, '/'), {
+        latest_notification: {
+          title: "تحديث في الجدول 📅",
+          body: `تم تحديث بيانات يوم ${selectedDay} في ${weeks[currentWeek]}`,
+          timestamp: Date.now()
+        }
+      });
+
+      showNotification("✅ تم حفظ التغييرات وإرسال إشعار");
     } catch (error) { showNotification("❌ حدث خطأ أثناء الحفظ"); }
   }
 
@@ -251,7 +280,6 @@ function Admin() {
           backdropFilter: 'blur(10px)'
         }}>
           <div style={{ width: '60px', height: '60px', backgroundColor: 'var(--primary-color)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px', boxShadow: '0 0 15px var(--primary-color)' }}>
-            {/* 🌟 تم استبدال القفل بالأيقونة الجديدة 🌟 */}
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="#fff" style={{ width: '32px', height: '32px' }}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
             </svg>
@@ -342,7 +370,7 @@ function Admin() {
                 return (
                   <div key={index} className={`day-card ${isExpanded ? 'expanded' : ''}`} style={{ opacity: displayOpacity, borderLeft: `5px solid ${isExpanded ? (isExam ? '#ff0000' : 'var(--primary-color)') : (isActuallyOpen ? statusColor : 'var(--dot-bg)')}`, backgroundColor: isExpanded ? 'var(--card-bg-expanded)' : 'var(--card-bg-normal)', transition: 'opacity 0.3s ease, border-color 0.3s ease, background-color 0.3s ease', borderRadius: '8px' }}>
                     <div onClick={() => toggleDay(day)} style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', cursor: 'pointer' }}>
-                      <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-pure)' }}>{day} {isExpanded ? ' ' : ''} {isExamDay && !isExpanded ? ' ' : ''}</h3>  {/* fire and pen (past) ----------------------------------------------------------------------------------------*/}
+                      <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-pure)' }}>{day} {isExpanded ? ' ' : ''} {isExamDay && !isExpanded ? ' ' : ''}</h3>
                       <span style={{ fontSize: '14px', fontFamily: 'sans-serif', fontWeight: 'bold', padding: '4px 12px', borderRadius: '6px', color: isExpanded ? statusColor : 'var(--text-muted)', backgroundColor: isExpanded ? `${statusColor}1a` : 'transparent', border: isExpanded ? `1px solid ${statusColor}4d` : '1px solid transparent' }}>{dateString}</span>
                     </div>
                     
@@ -377,7 +405,6 @@ function Admin() {
                                 <div style={{ paddingRight: '5px' }}>
                                   <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>عنوان المادة</div>
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    {/* 🌟 استخدام القائمة العامة المختصرة هنا 🌟 */}
                                     {scheduleSubjects.map((subName) => (
                                       <div key={subName} onClick={() => updateSubject(idx, 'name', subName)} style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', backgroundColor: subject.name === subName ? 'var(--primary-color)' : 'transparent', color: subject.name === subName ? '#fff' : 'var(--text-muted)', border: subject.name === subName ? '1px solid var(--primary-color)' : '1px solid var(--border-line)' }}>{subName}</div>
                                     ))}
@@ -411,14 +438,40 @@ function Admin() {
               <button onClick={nextWeek} style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '6px', padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer' }}>التالي</button>
             </div>
             
-            <div style={{ marginTop: '80px', borderTop: '1px dashed var(--border-line)', paddingTop: '1500px', textAlign: 'center' }}>
-              
+            {/* 🌟 قسم الإشعارات المخصصة للأدمن 🌟 */}
+            <div style={{ marginTop: '80px', borderTop: '1px dashed var(--border-line)', paddingTop: '30px', textAlign: 'center' }}>
+              <h3 style={{ color: 'var(--text-pure)', fontSize: '18px', marginBottom: '20px' }}>إرسال إشعار للطلاب 🔔</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '350px', margin: '0 auto' }}>
+                <input 
+                  type="text" 
+                  placeholder="عنوان الإشعار (مثال: عطلة رسمية)" 
+                  value={notifTitle} 
+                  onChange={(e) => setNotifTitle(e.target.value)} 
+                  style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border-line)', backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', outline: 'none' }} 
+                />
+                <textarea 
+                  placeholder="تفاصيل الإشعار..." 
+                  value={notifBody} 
+                  onChange={(e) => setNotifBody(e.target.value)} 
+                  style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border-line)', backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', minHeight: '80px', outline: 'none', resize: 'none' }} 
+                />
+                <button 
+                  onClick={sendCustomNotification} 
+                  style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '8px', padding: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px' }}
+                >
+                  إرسال الإشعار الآن 🚀
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '40px', borderTop: '1px dashed var(--border-line)', paddingTop: '30px', textAlign: 'center' }}>
               <h3 style={{ color: 'var(--text-muted)', fontSize: '15px' }}>إعدادات الأمان 🔒</h3>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', maxWidth: '300px', margin: '10px auto' }}>
                 <input type="text" placeholder="كلمة مرور جديدة..." value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border-line)', backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', textAlign: 'center', flex: 1, outline: 'none' }} />
                 <button onClick={handleChangePassword} style={{ backgroundColor: '#d32f2f', border: 'none', borderRadius: '6px', padding: '10px 15px', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>تغيير</button>
               </div>
             </div>
+
           </div>
         </>
       )}
@@ -428,7 +481,6 @@ function Admin() {
         <div className="week-animate" style={{ paddingBottom: '30px' }}>
           <div style={{ WebkitTapHighlightColor: 'transparent', display: 'flex', flexDirection: 'column', gap: '15px' }}>
             
-            {/* 🌟 استخدام القائمة المفصلة التي تحتوي نظري/عملي هنا 🌟 */}
             {materialsSubjects.map((subject, index) => {
               const isExpanded = selectedSubject === subject;
               const subjectMaterialsRaw = materialsData[subject];
@@ -495,26 +547,10 @@ function Admin() {
         </div>
       )}
 
-      {/* 🌟 تم التعديل: السهم الأنيق الصاعد (بدون دائرة) 🌟 */}
       <button 
         onClick={scrollToTop}
         style={{
-          position: 'fixed',
-          bottom: '30px', 
-          right: '20px',
-          background: 'transparent',
-          color: 'var(--primary-color)',
-          border: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          zIndex: 1000,
-          transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-          opacity: showScrollTop ? 1 : 0,
-          transform: showScrollTop ? 'scale(1.2)' : 'scale(0.5) translateY(20px)',
-          pointerEvents: showScrollTop ? 'auto' : 'none',
-          filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.4))'
+          position: 'fixed', bottom: '30px', right: '20px', background: 'transparent', color: 'var(--primary-color)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 1000, transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', opacity: showScrollTop ? 1 : 0, transform: showScrollTop ? 'scale(1.2)' : 'scale(0.5) translateY(20px)', pointerEvents: showScrollTop ? 'auto' : 'none', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.4))'
         }}
         title="العودة للأعلى"
       >

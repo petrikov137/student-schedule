@@ -51,6 +51,17 @@ const MatrixIcon = () => (
   </svg>
 );
 
+/* ------------------------- */
+/* --- بداية أيقونة الثعلب --- */
+const FoxIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff8c00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="12 22 2 8 12 15 22 8 12 22" fill="#ff8c00" stroke="#ff8c00" opacity="0.9"/>
+    <polyline points="2 8 6 2 12 8 18 2 22 8" />
+  </svg>
+);
+/* --- نهاية أيقونة الثعلب --- */
+/* ------------------------- */
+
 // ------------------------------------------------------------------------------------------------------------------------
 
 function StudentView() {
@@ -73,7 +84,6 @@ function StudentView() {
     "معمارية الحاسوب", 
     "اللغة الانكليزية",
     "SE | PowePoint Version",
-
   ];
   
   const [allScheduleData, setAllScheduleData] = useState({});
@@ -114,6 +124,10 @@ function StudentView() {
       else if (theme === 'coffee' || theme === 'coffee-light') metaThemeColor.setAttribute('content', '#f5ece5');
       else if (theme === 'ocean' || theme === 'ocean-light') metaThemeColor.setAttribute('content', '#0f2027');
       else if (theme === 'twilight' || theme === 'twilight-light') metaThemeColor.setAttribute('content', '#170f23');
+      /* ------------------------- */
+      /* --- لون الهاتف لثيم الثعلب --- */
+      else if (theme === 'fox') metaThemeColor.setAttribute('content', '#5Dadec');
+      /* ------------------------- */
       else metaThemeColor.setAttribute('content', '#141414');
     }
   }, [theme]);
@@ -209,6 +223,31 @@ function StudentView() {
 
   }, []);
 
+// 🌟 مستمع الإشعارات الفورية للطالب (مع التحقق من حالة الجرس) 🌟
+  useEffect(() => {
+    const notifRef = ref(database, 'latest_notification');
+    const unsubscribe = onValue(notifRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data && data.timestamp) {
+        const lastNotifTime = localStorage.getItem('last_notif_time');
+        
+        if (!lastNotifTime || data.timestamp > parseInt(lastNotifTime)) {
+          // 🌟 التحقق من أن الطالب مفعل لزر الجرس 🌟
+          const isUserSubscribed = localStorage.getItem('fcm_subscribed') === 'true';
+          
+          if (Notification.permission === 'granted' && isUserSubscribed) {
+            new Notification(data.title, { 
+              body: data.body,
+              icon: '/vite.svg', 
+              dir: 'rtl'
+            });
+          }
+          localStorage.setItem('last_notif_time', data.timestamp.toString());
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
   const getDayDataHelper = (weekIdx, dayName) => {
     const weekKey = `week_${weekIdx}`;
     return allScheduleData[weekKey] && allScheduleData[weekKey][dayName] ? allScheduleData[weekKey][dayName] : null;
@@ -226,15 +265,14 @@ function StudentView() {
     return dayData.lastUpdated > parseInt(lastSeenTime);
   };
 
-  const triggerThemeBurst = useCallback((weekIndexToBurst) => {
+  const triggerThemeBurst = useCallback((weekIndexToBurst, e = null) => {
     const isOceanTheme = theme === 'ocean' || theme === 'ocean-light';
     
     if (isOceanTheme) {
       const dotElement = document.getElementById(`dot-${weekIndexToBurst}`);
       if (dotElement) {
-        const rect = dotElement.getBoundingClientRect();
-        
-        // 🌟 إصلاح الخلل: حساب نسبة الزووم وإلغاء تأثيرها العكسي في إحداثيات الهواتف 🌟
+        let burstX, burstY;
+
         let zoomFactor = 1;
         const container = document.querySelector('.main-container');
         if (container) {
@@ -244,9 +282,20 @@ function StudentView() {
           }
         }
 
-        // 🌟 حساب المركز الهندسي الدقيق للنقطة مقسوماً على الزووم لضبط الموقع بدقة متناهية 🌟
-        const burstX = (rect.left + (rect.width / 2)) / zoomFactor;
-        const burstY = (rect.top + (rect.height / 2)) / zoomFactor;
+        if (e && e.touches && e.touches.length > 0) {
+          burstX = e.touches[0].clientX;
+          burstY = e.touches[0].clientY;
+        } else if (e && e.clientX && e.clientY) {
+           burstX = e.clientX;
+           burstY = e.clientY;
+        } else {
+          const rect = dotElement.getBoundingClientRect();
+          burstX = rect.left + (rect.width / 2);
+          burstY = rect.top + (rect.height / 2);
+        }
+
+        burstX = burstX / zoomFactor;
+        burstY = burstY / zoomFactor;
 
         const newBurst = { id: Date.now() + Math.random(), x: burstX, y: burstY };
         setBubbleBursts(prev => [...prev, newBurst]);
@@ -486,7 +535,8 @@ function StudentView() {
               }}>
                 {[
                   { id: 'glass', icon: <GlassIcon />, label: 'زجاج' }, 
-                  { id: 'matrix', icon: <MatrixIcon />, label: 'مصفوفة' }
+                  { id: 'matrix', icon: <MatrixIcon />, label: 'مصفوفة' },
+                  { id: 'fox', icon: <FoxIcon />, label: 'الثعلب' }
                 ].map((t) => {
                   const isHovered = hoveredTheme === t.id;
                   const isPressed = pressedTheme === t.id;
@@ -662,9 +712,9 @@ function StudentView() {
                   <div 
                     id={`dot-${index}`} 
                     key={index} 
-                    onClick={() => {
+                    onClick={(e) => {
                       if (currentWeek !== index) {
-                        triggerThemeBurst(currentWeek); 
+                        triggerThemeBurst(currentWeek, e); 
                         setCurrentWeek(index);
                         setSelectedDay(null);
                       }

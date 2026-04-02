@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 import { getStorage } from "firebase/storage";
+import { getMessaging } from "firebase/messaging"; // 🌟 إضافة خدمة الإشعارات
 
 const firebaseConfig = {
   apiKey: "AIzaSyA9Gnzgm7U5EkYK1P9LY7N-kHa0EsZLz-g",
@@ -16,3 +17,4 @@ const app = initializeApp(firebaseConfig);
 
 export const database = getDatabase(app);
 export const storage = getStorage(app);
+export const messaging = getMessaging(app); // 🌟 تصدير خدمة الإشعارات

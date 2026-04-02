@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getToken } from 'firebase/messaging';
+import { messaging, database } from './firebase';
+import { ref, set } from 'firebase/database';
 
-// --- 🎨 طقم أيقونات الثيمات المزاجية (تدعم تغيير اللون ديناميكياً) ---
+// --- 🎨 طقم أيقونات الثيمات المزاجية ---
 
 const HeartsIcon = ({ color }) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill={color}>
@@ -45,14 +48,105 @@ const ScheduleIcon = () => (
   </svg>
 );
 
+// 🌟 أيقونة الجرس مع أنيميشن الخط المائل 🌟
+const BellIcon = ({ isSubscribed }) => {
+  return (
+    <div style={{ position: 'relative', width: '18px', height: '18px' }}>
+      {/* أيقونة الجرس الأساسية (تُملأ باللون عند التفعيل) */}
+      <svg 
+        width="18" height="18" viewBox="0 0 24 24" 
+        fill={isSubscribed ? "currentColor" : "none"} 
+        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        style={{
+          position: 'absolute', top: 0, left: 0,
+          transition: 'fill 0.3s ease'
+        }}
+      >
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+      
+      {/* الخط المائل المكتوم مع الأنيميشن */}
+      <svg 
+        width="18" height="18" viewBox="0 0 24 24" 
+        style={{
+          position: 'absolute', top: 0, left: 0,
+          pointerEvents: 'none'
+        }}
+      >
+        <line 
+          x1="3" y1="3" x2="21" y2="21" 
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+          style={{
+            strokeDasharray: 26, /* طول الخط التقريبي */
+            strokeDashoffset: isSubscribed ? 26 : 0, /* إخفاء الخط أو إظهاره */
+            transition: 'stroke-dashoffset 0.4s cubic-bezier(0.4, 0, 0.2, 1)', /* حركة الرسم من الأعلى للأسفل */
+            opacity: isSubscribed ? 0 : 1 /* إخفاء إضافي عندما يكون مفعلاً */
+          }}
+        />
+      </svg>
+    </div>
+  );
+};
+
+
 function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
   const [isThemesOpen, setIsThemesOpen] = useState(false);
   const themesContainerRef = useRef(null);
   
   const [hoveredThemeId, setHoveredThemeId] = useState(null);
+  const [pressedThemeId, setPressedThemeId] = useState(null);
 
   const isLightVariantActive = currentTheme.includes('-light') || currentTheme === 'hearts' || currentTheme === 'light';
   const [isNightMode, setIsNightMode] = useState(!isLightVariantActive);
+
+  const [isSubscribed, setIsSubscribed] = useState(localStorage.getItem('fcm_subscribed') === 'true');
+  
+  // 🌟 حالات إشعارات Toast 🌟
+  const [toastMessage, setToastMessage] = useState('');
+  const [showToast, setShowToast] = useState(false);
+
+  // 🌟 حالة اهتزاز الجرس 🌟
+  const [isSwinging, setIsSwinging] = useState(false);
+
+  const showAppToast = (message) => {
+    setToastMessage(message);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  const handleSubscribe = async () => {
+    if (isSubscribed) {
+      setIsSubscribed(false);
+      localStorage.setItem('fcm_subscribed', 'false');
+      showAppToast('تم كتم الإشعارات 🔕');
+    } else {
+      try {
+        // تفعيل أنيميشن التأرجح
+        setIsSwinging(true);
+        setTimeout(() => setIsSwinging(false), 800); // إيقاف الأنيميشن بعد انتهاء مدته
+
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          setIsSubscribed(true);
+          localStorage.setItem('fcm_subscribed', 'true');
+          
+          try {
+            const token = await getToken(messaging, { vapidKey: 'YOUR_VAPID_KEY_HERE' });
+            if (token) {
+              await set(ref(database, 'fcmTokens/' + token), true);
+            }
+          } catch (e) { console.log('FCM token skip.'); }
+          
+          showAppToast('تم تفعيل الإشعارات 🔔');
+        } else {
+          showAppToast('تم رفض الصلاحية من المتصفح ❌');
+        }
+      } catch (error) {
+        console.error('خطأ في تفعيل الإشعارات:', error);
+      }
+    }
+  };
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -84,7 +178,6 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
     }
   };
 
-  // 🌟 دالة لقلب لون الأيقونات (الداكن يأخذ الفاتح، والفاتح يأخذ الداكن) 🌟
   const getThemeColor = (baseId) => {
     switch(baseId) {
       case 'twilight': return isNightMode ? '#7e22ce' : '#9333ea';
@@ -120,6 +213,21 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
             transform: skewX(-25deg); animation: sweep-glint 0.8s cubic-bezier(0.4, 0, 0.2, 1) both;
             pointer-events: none; z-index: 2;
           }
+          
+          /* 🌟 أنيميشن تأرجح الجرس 🌟 */
+          @keyframes swing-bell {
+            0% { transform: rotate(0deg); }
+            15% { transform: rotate(15deg); }
+            30% { transform: rotate(-15deg); }
+            45% { transform: rotate(10deg); }
+            60% { transform: rotate(-10deg); }
+            75% { transform: rotate(5deg); }
+            100% { transform: rotate(0deg); }
+          }
+          .swinging {
+            animation: swing-bell 0.8s ease-in-out;
+            transform-origin: top center;
+          }
         `}
       </style>
 
@@ -128,6 +236,32 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
         height: '48px', backgroundColor: 'transparent', borderBottom: '1px solid var(--border-line)', position: 'relative', marginBottom: '20px'
       }}>
         
+        {/* 🌟 رسالة التفعيل تظهر في منتصف شريط الهيدر 🌟 */}
+        <div 
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: `translate(-50%, -50%) scale(${showToast ? 1 : 0.8})`,
+            opacity: showToast ? 1 : 0,
+            pointerEvents: 'none',
+            backgroundColor: 'var(--card-bg-locked)',
+            color: 'var(--text-pure)',
+            padding: '6px 16px',
+            borderRadius: '20px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            border: '1px solid var(--primary-color)',
+            zIndex: 50,
+            fontWeight: 'bold',
+            fontSize: '12px', /* حجم أنيق مناسب لارتفاع الهيدر */
+            textAlign: 'center',
+            transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {toastMessage}
+        </div>
+
         <div ref={themesContainerRef} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button 
             onClick={toggleModeAndOpen}
@@ -135,7 +269,8 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
               background: 'transparent', border: 'none', color: 'var(--text-pure)', cursor: 'pointer',
               padding: '6px', borderRadius: '6px', transition: 'background-color 0.3s ease', zIndex: 20,
               display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-              width: '32px', height: '32px', overflow: 'hidden'
+              width: '32px', height: '32px', overflow: 'hidden',
+              WebkitTapHighlightColor: 'transparent'
             }}
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--card-bg-locked)'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -152,20 +287,35 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
             {baseThemesDefinitions.map((themeObj, index) => {
               const currentModeId = isNightMode ? themeObj.dark : themeObj.light;
               const isHovered = hoveredThemeId === themeObj.baseId;
+              const isPressed = pressedThemeId === themeObj.baseId;
+
+              let targetScale = 1;
+              if (isPressed) {
+                targetScale = 0.9;
+              } else if (isHovered) {
+                targetScale = 1.15;
+              }
               
               return (
                 <div 
                   key={themeObj.baseId} 
                   onClick={(e) => onThemeSelect(currentModeId, e)}
                   onMouseEnter={() => setHoveredThemeId(themeObj.baseId)}
-                  onMouseLeave={() => setHoveredThemeId(null)}
+                  onMouseLeave={() => { setHoveredThemeId(null); setPressedThemeId(null); }}
+                  onMouseDown={() => setPressedThemeId(themeObj.baseId)}
+                  onMouseUp={() => setPressedThemeId(null)}
+                  onTouchStart={() => setPressedThemeId(themeObj.baseId)}
+                  onTouchEnd={() => setPressedThemeId(null)}
                   style={{
                     backgroundColor: 'transparent', border: 'none', padding: '4px 6px', borderRadius: '6px', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-pure)', width: '32px', height: '32px',
-                    zIndex: isHovered ? 10 : 1, 
-                    transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1.1)', transitionDelay: isThemesOpen ? `${index * 0.05}s` : '0s', transformOrigin: 'right center',
-                    transform: isThemesOpen ? `translateX(0px) scale(${isHovered ? 1.15 : 1})` : `translateX(${(index + 1) * 36}px) scale(0.6)`,
+                    zIndex: isHovered || isPressed ? 10 : 1, 
+                    transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1.1)', 
+                    transitionDelay: (isThemesOpen && hoveredThemeId === null && pressedThemeId === null) ? `${index * 0.05}s` : '0s', 
+                    transformOrigin: 'center center',
+                    transform: isThemesOpen ? `translateX(0px) scale(${targetScale})` : `translateX(${(index + 1) * 36}px) scale(0.6)`,
                     opacity: isThemesOpen ? 1 : 0,
+                    WebkitTapHighlightColor: 'transparent'
                   }}
                 >
                   <div className="glint-box" key={String(isNightMode)}>
@@ -178,17 +328,39 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
           </div>
         </div>
 
-        <div>
+        {/* 🌟 أزرار التحكم 🌟 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+
+          {/* 🌟 زر الجرس مع تفعيل حالة الأنيميشن 🌟 */}
+          <button 
+            onClick={handleSubscribe}
+            className={isSwinging ? 'swinging' : ''} 
+            style={{
+              background: 'transparent', border: 'none', color: 'var(--primary-color)', /* أصبح بلون أساسي دائماً ليطابق الملازم */
+              cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'all 0.3s ease',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+              width: '32px', height: '32px',
+              WebkitTapHighlightColor: 'transparent'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--card-bg-locked)'; e.currentTarget.style.color = 'var(--text-pure)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--primary-color)'; }}
+            title={isSubscribed ? 'إيقاف الإشعارات' : 'تفعيل الإشعارات'}
+          >
+            <BellIcon isSubscribed={isSubscribed} />
+          </button>
+
+          {/* 🌟 زر الملازم والجدول 🌟 */}
           <button 
             onClick={() => onTabChange(activeTab === 'schedule' ? 'materials' : 'schedule')}
             style={{
-              background: 'transparent', border: 'none', color: 'var(--text-muted)',
+              background: 'transparent', border: 'none', color: 'var(--primary-color)',
               cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'all 0.3s ease',
               display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-              width: '32px', height: '32px', overflow: 'hidden'
+              width: '32px', height: '32px', overflow: 'hidden',
+              WebkitTapHighlightColor: 'transparent'
             }}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--card-bg-locked)'; e.currentTarget.style.color = 'var(--text-pure)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--primary-color)'; }}
           >
             <div style={{ 
               position: 'absolute', transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
@@ -206,6 +378,7 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
               <ScheduleIcon />
             </div>
           </button>
+
         </div>
 
       </header>

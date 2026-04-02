@@ -275,8 +275,8 @@
   --bg-gradient: linear-gradient(135deg, #4c0519 0%, #28020d 100%);
   --text-main: #fda4af;
   --text-pure: #ffe4e6;
-  --text-details: #fb7185;
-  --text-muted: #881337;
+  --text-details: #fca5a5;
+  --text-muted: #fb7185; 
   --primary-color: #f43f5e;
   --card-bg-normal: #881337;
   --card-bg-locked: #4c0519;
@@ -291,3 +291,28 @@
   --notify-3: #be123c;
   --border-line: rgba(244, 63, 94, 0.2);
 }
+/* ------------------------- */
+/* --- 🦊 ثيم الثعلب (Fox Theme) --- */
+[data-theme='fox'] {
+  /* إزالة لون الخلفية الثابت للسماح للصورة بالظهور */
+  --bg-gradient: transparent; 
+  --text-main: #e0f2e9;
+  --text-pure: #ffffff;
+  --text-details: #9bbca6;
+  --text-muted: #6b8e76;
+  --primary-color: #ff8c00;
+  /* تغميق البطاقات قليلاً لتكون القراءة مريحة فوق صورة الخلفية */
+  --card-bg-normal: rgba(15, 35, 20, 0.75); 
+  --card-bg-locked: rgba(10, 25, 15, 0.85);
+  --card-bg-expanded: rgba(20, 50, 28, 0.85);
+  --card-bg-hover: rgba(25, 60, 32, 0.90);
+  --dot-bg: #2a5a36;
+  --dot-active: #ff8c00;
+  --subj-name: #ffaa33;
+  --note-title: #ffe4b5;
+  --notify-1: rgba(10, 25, 15, 0.85);
+  --notify-2: rgba(15, 35, 20, 0.75);
+  --notify-3: rgba(20, 50, 28, 0.85);
+  --border-line: rgba(255, 140, 0, 0.25); 
+}
+/* ------------------------- */

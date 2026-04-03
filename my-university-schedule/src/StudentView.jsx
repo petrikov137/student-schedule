@@ -223,7 +223,7 @@ function StudentView() {
 
   }, []);
 
-// 🌟 مستمع الإشعارات الفورية للطالب (مع التحقق من حالة الجرس) 🌟
+// 🌟 مستمع الإشعارات الفورية للطالب (محدث ليدعم هواتف الأندرويد) 🌟
   useEffect(() => {
     const notifRef = ref(database, 'latest_notification');
     const unsubscribe = onValue(notifRef, (snapshot) => {
@@ -232,15 +232,25 @@ function StudentView() {
         const lastNotifTime = localStorage.getItem('last_notif_time');
         
         if (!lastNotifTime || data.timestamp > parseInt(lastNotifTime)) {
-          // 🌟 التحقق من أن الطالب مفعل لزر الجرس 🌟
           const isUserSubscribed = localStorage.getItem('fcm_subscribed') === 'true';
           
           if (Notification.permission === 'granted' && isUserSubscribed) {
-            new Notification(data.title, { 
-              body: data.body,
-              icon: '/vite.svg', 
-              dir: 'rtl'
-            });
+            
+            // 🌟: استخدام Service Worker لعرض الإشعار 🌟
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.ready.then((registration) => {
+                registration.showNotification(data.title, { 
+                  body: data.body,
+                  icon: '/vite.svg', // تأكد أن الأيقونة موجودة في مسارها الصحيح
+                  dir: 'rtl',
+                  vibrate: [200, 100, 200] // إضافة اهتزاز للهاتف
+                });
+              });
+            } else {
+              // احتياطي للكمبيوتر القديم
+              new Notification(data.title, { body: data.body, icon: '/vite.svg', dir: 'rtl' });
+            }
+
           }
           localStorage.setItem('last_notif_time', data.timestamp.toString());
         }

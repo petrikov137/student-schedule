@@ -121,10 +121,10 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
       localStorage.setItem('fcm_subscribed', 'false');
       showAppToast('تم كتم الإشعارات 🔕');
     } else {
-      try {
+try {
         // تفعيل أنيميشن التأرجح
         setIsSwinging(true);
-        setTimeout(() => setIsSwinging(false), 800); // إيقاف الأنيميشن بعد انتهاء مدته
+        setTimeout(() => setIsSwinging(false), 800);
 
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
@@ -132,11 +132,19 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
           localStorage.setItem('fcm_subscribed', 'true');
           
           try {
-            const token = await getToken(messaging, { vapidKey: 'YOUR_VAPID_KEY_HERE' });
+            // 🌟 تسجيل الـ Service Worker برابط Vite الديناميكي ليعمل مع GitHub Pages 🌟
+            const swRegistration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}firebase-messaging-sw.js`);
+            
+            // إعطاء فايربيس هذا التسجيل
+            const token = await getToken(messaging, { 
+              vapidKey: 'YOUR_VAPID_KEY_HERE', 
+              serviceWorkerRegistration: swRegistration // 🌟 السطر الجديد
+            });
+            
             if (token) {
               await set(ref(database, 'fcmTokens/' + token), true);
             }
-          } catch (e) { console.log('FCM token skip.'); }
+          } catch (e) { console.log('FCM token skip:', e); }
           
           showAppToast('تم تفعيل الإشعارات 🔔');
         } else {

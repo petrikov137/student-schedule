@@ -151,10 +151,60 @@ function Admin() {
     } catch (error) { showNotification("فشل التغيير: " + error.message); }
   };
 
+  // 🌟 دالة إرسال الإشعار المنبثق الحقيقي (تعمل والتطبيق مغلق) 🌟
+  const sendRealPushNotification = async (title, body) => {
+    // ⚠️ ضع مفتاح الخادم (Server Key) الخاص بك هنا بدلاً من الكلمة ⚠️
+    const YOUR_SERVER_KEY = "ضعه_هنا"; 
+
+    try {
+      // 1. جلب توكنات الأجهزة المشتركة
+      const tokensSnapshot = await get(ref(database, 'fcmTokens'));
+      if (!tokensSnapshot.exists()) {
+        console.log("لا يوجد أجهزة مشتركة");
+        return;
+      }
+      
+      const tokens = Object.keys(tokensSnapshot.val());
+
+      // 2. تجهيز بيانات الإشعار مع إعدادات الأندرويد للمنبثق
+      const notificationData = {
+        registration_ids: tokens,
+        notification: {
+          title: title,
+          body: body,
+          icon: "https://petrikov.github.io/uni-schedule-99109/vite.svg", // رابط أيقونتك المباشر
+          sound: "default",
+          android_channel_id: "high_priority" // ضروري لجعله ينبثق
+        },
+        data: {
+          url: "https://petrikov.github.io/uni-schedule-99109/" // الرابط الذي يفتح عند النقر
+        },
+        priority: "high"
+      };
+
+      // 3. إرسال الطلب لخوادم جوجل
+      await fetch('https://fcm.googleapis.com/fcm/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `key=${YOUR_SERVER_KEY}`
+        },
+        body: JSON.stringify(notificationData)
+      });
+      console.log('تم إرسال الإشعار الحقيقي بنجاح');
+    } catch (error) {
+      console.error('خطأ في إرسال الإشعار:', error);
+    }
+  };
+
   // 🌟 دالة إرسال الإشعار المخصص 🌟
   const sendCustomNotification = async () => {
     if (!notifTitle.trim() || !notifBody.trim()) return showNotification("⚠️ الرجاء كتابة عنوان وتفاصيل الإشعار!");
     try {
+      // إرسال الإشعار الحقيقي للأجهزة المغلقة
+      await sendRealPushNotification(notifTitle, notifBody);
+
+      // التحديث القديم للقاعدة (للأجهزة التي تفتح التطبيق حالياً)
       await update(ref(database, '/'), {
         latest_notification: {
           title: notifTitle,
@@ -200,11 +250,17 @@ function Admin() {
     try {
       await update(ref(database, `week_${currentWeek}/${selectedDay}`), { subjects: subjectsList, isOpen: isDayOpen === true, isExam: isExam === true, lastUpdated: Date.now() });
       
+      const title = "تحديث في الجدول 📅";
+      const body = `تم تحديث بيانات يوم ${selectedDay} في ${weeks[currentWeek]}`;
+
+      // إرسال الإشعار الحقيقي للأجهزة المغلقة
+      await sendRealPushNotification(title, body);
+
       // 🌟 إرسال إشعار تلقائي للطلاب بتحديث الجدول 🌟
       await update(ref(database, '/'), {
         latest_notification: {
-          title: "تحديث في الجدول 📅",
-          body: `تم تحديث بيانات يوم ${selectedDay} في ${weeks[currentWeek]}`,
+          title: title,
+          body: body,
           timestamp: Date.now()
         }
       });
@@ -325,7 +381,8 @@ function Admin() {
               fontWeight: 'bold',
               cursor: 'pointer',
               transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
+              boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+              WebkitTapHighlightColor: 'transparent'
             }}
             onMouseEnter={(e) => { e.target.style.transform = 'translateY(-2px)'; e.target.style.boxShadow = '0 6px 15px rgba(0,0,0,0.2)'; }}
             onMouseLeave={(e) => { e.target.style.transform = 'translateY(0)'; e.target.style.boxShadow = '0 4px 10px rgba(0,0,0,0.1)'; }}
@@ -369,7 +426,7 @@ function Admin() {
 
                 return (
                   <div key={index} className={`day-card ${isExpanded ? 'expanded' : ''}`} style={{ opacity: displayOpacity, borderLeft: `5px solid ${isExpanded ? (isExam ? '#ff0000' : 'var(--primary-color)') : (isActuallyOpen ? statusColor : 'var(--dot-bg)')}`, backgroundColor: isExpanded ? 'var(--card-bg-expanded)' : 'var(--card-bg-normal)', transition: 'opacity 0.3s ease, border-color 0.3s ease, background-color 0.3s ease', borderRadius: '8px' }}>
-                    <div onClick={() => toggleDay(day)} style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', cursor: 'pointer' }}>
+                    <div onClick={() => toggleDay(day)} style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
                       <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-pure)' }}>{day} {isExpanded ? ' ' : ''} {isExamDay && !isExpanded ? ' ' : ''}</h3>
                       <span style={{ fontSize: '14px', fontFamily: 'sans-serif', fontWeight: 'bold', padding: '4px 12px', borderRadius: '6px', color: isExpanded ? statusColor : 'var(--text-muted)', backgroundColor: isExpanded ? `${statusColor}1a` : 'transparent', border: isExpanded ? `1px solid ${statusColor}4d` : '1px solid transparent' }}>{dateString}</span>
                     </div>
@@ -384,20 +441,20 @@ function Admin() {
                           
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', paddingBottom: '10px', borderBottom: '1px solid var(--border-line)' }}>
-                              <button onClick={addSubject} style={{ backgroundColor: 'transparent', color: 'var(--primary-color)', border: '1px dashed var(--primary-color)', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }} onMouseEnter={(e) => { e.target.style.backgroundColor = 'var(--card-bg-locked)'; }} onMouseLeave={(e) => { e.target.style.backgroundColor = 'transparent'; }}><span style={{ fontSize: '16px', lineHeight: 1 }}>+</span> إضافة مادة</button>
+                              <button onClick={addSubject} style={{ backgroundColor: 'transparent', color: 'var(--primary-color)', border: '1px dashed var(--primary-color)', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', WebkitTapHighlightColor: 'transparent' }} onMouseEnter={(e) => { e.target.style.backgroundColor = 'var(--card-bg-locked)'; }} onMouseLeave={(e) => { e.target.style.backgroundColor = 'transparent'; }}><span style={{ fontSize: '16px', lineHeight: 1 }}>+</span> إضافة مادة</button>
                               
-                              <button onClick={handleSave} style={{ backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>💾 حفظ</button>
+                              <button onClick={handleSave} style={{ backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)', WebkitTapHighlightColor: 'transparent' }}>💾 حفظ</button>
                             </div>
                             
                             {subjectsList.map((subject, idx) => (
                               <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px', backgroundColor: 'var(--card-bg-locked)', padding: '20px 16px', borderRadius: '12px', border: '1px solid var(--border-line)', position: 'relative' }}>
-                                <button onClick={() => removeSubject(idx)} style={{ position: 'absolute', top: '10px', left: '10px', background: 'transparent', border: 'none', color: '#d32f2f', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>✕</button>
+                                <button onClick={() => removeSubject(idx)} style={{ position: 'absolute', top: '10px', left: '10px', background: 'transparent', border: 'none', color: '#d32f2f', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>✕</button>
                                 
                                 <div style={{ paddingRight: '5px' }}>
                                   <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>نوع الحدث</div>
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                     {eventTypes.map(type => (
-                                      <div key={type} onClick={() => updateSubject(idx, 'type', type)} style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', backgroundColor: subject.type === type ? 'var(--primary-color)' : 'transparent', color: subject.type === type ? '#fff' : 'var(--text-muted)', border: subject.type === type ? '1px solid var(--primary-color)' : '1px solid var(--border-line)' }}>{type}</div>
+                                      <div key={type} onClick={() => updateSubject(idx, 'type', type)} style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', backgroundColor: subject.type === type ? 'var(--primary-color)' : 'transparent', color: subject.type === type ? '#fff' : 'var(--text-muted)', border: subject.type === type ? '1px solid var(--primary-color)' : '1px solid var(--border-line)', WebkitTapHighlightColor: 'transparent' }}>{type}</div>
                                     ))}
                                   </div>
                                 </div>
@@ -406,7 +463,7 @@ function Admin() {
                                   <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>عنوان المادة</div>
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                     {scheduleSubjects.map((subName) => (
-                                      <div key={subName} onClick={() => updateSubject(idx, 'name', subName)} style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', backgroundColor: subject.name === subName ? 'var(--primary-color)' : 'transparent', color: subject.name === subName ? '#fff' : 'var(--text-muted)', border: subject.name === subName ? '1px solid var(--primary-color)' : '1px solid var(--border-line)' }}>{subName}</div>
+                                      <div key={subName} onClick={() => updateSubject(idx, 'name', subName)} style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', backgroundColor: subject.name === subName ? 'var(--primary-color)' : 'transparent', color: subject.name === subName ? '#fff' : 'var(--text-muted)', border: subject.name === subName ? '1px solid var(--primary-color)' : '1px solid var(--border-line)', WebkitTapHighlightColor: 'transparent' }}>{subName}</div>
                                     ))}
                                   </div>
                                 </div>
@@ -419,7 +476,7 @@ function Admin() {
                             ))}
                           </div>
                           
-                          <button onClick={handleSave} style={{ marginTop: '10px', backgroundColor: 'var(--primary-color)', width: '100%', padding: '16px', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' }}> حفظ التعديلات</button>
+                          <button onClick={handleSave} style={{ marginTop: '10px', backgroundColor: 'var(--primary-color)', width: '100%', padding: '16px', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px', WebkitTapHighlightColor: 'transparent' }}> حفظ التعديلات</button>
                         </div>
                       )}
                     </div>
@@ -431,11 +488,11 @@ function Admin() {
           
           <div style={{ marginTop: '40px', paddingBottom: '20px' }}>
             <div className="dots-container" onMouseLeave={() => setHoveredWeek(null)} style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '20px' }}>
-              {weeks.map((_, index) => <div key={index} onClick={() => { setCurrentWeek(index); setSelectedDay(null); }} className={`dot ${currentWeek === index ? 'active' : ''}`} style={{ transform: `scale(${currentWeek === index ? 1.5 : 1})`, cursor: 'pointer', borderRadius: '4px', backgroundColor: currentWeek === index ? 'var(--primary-color)' : 'var(--dot-bg)' }}></div> )}
+              {weeks.map((_, index) => <div key={index} onClick={() => { setCurrentWeek(index); setSelectedDay(null); }} className={`dot ${currentWeek === index ? 'active' : ''}`} style={{ transform: `scale(${currentWeek === index ? 1.5 : 1})`, cursor: 'pointer', borderRadius: '4px', backgroundColor: currentWeek === index ? 'var(--primary-color)' : 'var(--dot-bg)', WebkitTapHighlightColor: 'transparent' }}></div> )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 5px' }}>
-              <button onClick={prevWeek} style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '6px', padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer' }}>السابق</button>
-              <button onClick={nextWeek} style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '6px', padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer' }}>التالي</button>
+              <button onClick={prevWeek} style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '6px', padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>السابق</button>
+              <button onClick={nextWeek} style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '6px', padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>التالي</button>
             </div>
             
             {/* 🌟 قسم الإشعارات المخصصة للأدمن 🌟 */}
@@ -457,7 +514,7 @@ function Admin() {
                 />
                 <button 
                   onClick={sendCustomNotification} 
-                  style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '8px', padding: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px' }}
+                  style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '8px', padding: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px', WebkitTapHighlightColor: 'transparent' }}
                 >
                   إرسال الإشعار الآن 🚀
                 </button>
@@ -468,7 +525,7 @@ function Admin() {
               <h3 style={{ color: 'var(--text-muted)', fontSize: '15px' }}>إعدادات الأمان 🔒</h3>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', maxWidth: '300px', margin: '10px auto' }}>
                 <input type="text" placeholder="كلمة مرور جديدة..." value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border-line)', backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', textAlign: 'center', flex: 1, outline: 'none' }} />
-                <button onClick={handleChangePassword} style={{ backgroundColor: '#d32f2f', border: 'none', borderRadius: '6px', padding: '10px 15px', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}>تغيير</button>
+                <button onClick={handleChangePassword} style={{ backgroundColor: '#d32f2f', border: 'none', borderRadius: '6px', padding: '10px 15px', color: 'white', cursor: 'pointer', fontWeight: 'bold', WebkitTapHighlightColor: 'transparent' }}>تغيير</button>
               </div>
             </div>
 
@@ -502,7 +559,7 @@ function Admin() {
                     setSelectedSubject(isExpanded ? null : subject);
                     setMatTitle(""); 
                     setMatLink("");
-                  }} style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', cursor: 'pointer' }}>
+                  }} style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
                     <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-pure)' }}>{subject}</h3>
                     <span style={{ fontSize: '13px', color: isExpanded ? 'var(--primary-color)' : 'var(--text-muted)', backgroundColor: isExpanded ? 'rgba(0,0,0,0.15)' : 'var(--card-bg-locked)', padding: '4px 10px', borderRadius: '8px', fontWeight: 'bold' }}>
                       {hasMaterials ? `${subjectMaterials.length} ملفات` : 'لا يوجد'}
@@ -520,8 +577,8 @@ function Admin() {
                               <span style={{ color: 'var(--text-details)', fontSize: '12px' }}>تمت الإضافة: {mat.date || 'حديثاً'}</span>
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                              <a href={mat.link} target="_blank" rel="noopener noreferrer" style={{ backgroundColor: 'var(--primary-color)', color: '#fff', padding: '8px 16px', borderRadius: '6px', textDecoration: 'none', fontSize: '13px', fontWeight: 'bold' }}>فتح 📥</a>
-                              <button onClick={() => handleDeleteMaterial(subject, idx)} style={{ backgroundColor: '#d32f2f', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>حذف 🗑️</button>
+                              <a href={mat.link} target="_blank" rel="noopener noreferrer" style={{ backgroundColor: 'var(--primary-color)', color: '#fff', padding: '8px 16px', borderRadius: '6px', textDecoration: 'none', fontSize: '13px', fontWeight: 'bold', WebkitTapHighlightColor: 'transparent' }}>فتح 📥</a>
+                              <button onClick={() => handleDeleteMaterial(subject, idx)} style={{ backgroundColor: '#d32f2f', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', WebkitTapHighlightColor: 'transparent' }}>حذف 🗑️</button>
                             </div>
                           </div>
                         ))
@@ -534,7 +591,7 @@ function Admin() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                           <input type="text" value={matTitle} onChange={(e) => setMatTitle(e.target.value)} placeholder="اسم الملزمة (مثال: الشابتر الأول)..." style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-line)', backgroundColor: 'var(--card-bg-normal)', color: 'var(--text-pure)', boxSizing: 'border-box' }} />
                           <input type="url" value={matLink} onChange={(e) => setMatLink(e.target.value)} placeholder="رابط التحميل (Drive أو غيره)..." style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-line)', backgroundColor: 'var(--card-bg-normal)', color: 'var(--text-pure)', boxSizing: 'border-box', direction: 'ltr', textAlign: 'left' }} />
-                          <button onClick={() => handleAddMaterial(subject)} style={{ backgroundColor: 'var(--primary-color)', color: '#fff', fontWeight: 'bold', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>حفظ المادة 📤</button>
+                          <button onClick={() => handleAddMaterial(subject)} style={{ backgroundColor: 'var(--primary-color)', color: '#fff', fontWeight: 'bold', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', WebkitTapHighlightColor: 'transparent' }}>حفظ المادة 📤</button>
                         </div>
                       </div>
 
@@ -550,7 +607,7 @@ function Admin() {
       <button 
         onClick={scrollToTop}
         style={{
-          position: 'fixed', bottom: '30px', right: '20px', background: 'transparent', color: 'var(--primary-color)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 1000, transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', opacity: showScrollTop ? 1 : 0, transform: showScrollTop ? 'scale(1.2)' : 'scale(0.5) translateY(20px)', pointerEvents: showScrollTop ? 'auto' : 'none', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.4))'
+          position: 'fixed', bottom: '30px', right: '20px', background: 'transparent', color: 'var(--primary-color)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 1000, transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', opacity: showScrollTop ? 1 : 0, transform: showScrollTop ? 'scale(1.2)' : 'scale(0.5) translateY(20px)', pointerEvents: showScrollTop ? 'auto' : 'none', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.4))', WebkitTapHighlightColor: 'transparent'
         }}
         title="العودة للأعلى"
       >

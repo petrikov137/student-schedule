@@ -16,29 +16,29 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
     body: payload.notification.body,
-    icon: '/logo.png', // 🌟 تأكد من وضع صورة باسم logo.png في مجلد public
-    badge: '/logo.png',
+    icon: '/vite.svg', // أيقونة التطبيق (يمكنك تغييرها لاحقاً)
+    badge: '/vite.svg', // الأيقونة الصغيرة في شريط الإشعارات العلوي
     dir: 'rtl',
-    data: { url: payload.data.url }, // حفظ الرابط للضغط عليه
-    tag: 'schedule-update', // لمنع تكرار الإشعارات
-    renotify: true
+    data: { url: payload.data?.url || '/' } // حفظ الرابط للضغط عليه
   };
 
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// 🌟 عند الضغط على الإشعار: يأخذك للجدول مباشرة
+// 🌟 عند الضغط على الإشعار: يأخذك للجدول مباشرة 🌟
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data.url || '/';
+  const urlToOpen = event.notification.data.url;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // إذا كان التطبيق مفتوحاً في الخلفية، اجلبه للمقدمة
       for (let client of windowClients) {
         if (client.url === urlToOpen && 'focus' in client) {
           return client.focus();
         }
       }
+      // إذا كان التطبيق مغلقاً تماماً، افتح نافذة جديدة
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }

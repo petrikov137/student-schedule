@@ -23,32 +23,19 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'لا يوجد أجهزة مشتركة' });
     }
 
-    /* const message = {
-      tokens: tokens,
-      // 🌟 أعدنا هذا القسم لكي يفهم الأندرويد أنه إشعار هام ويوقظ الهاتف 🌟
-      notification: { 
-        title: title, 
-        body: body 
-      },
-      // 🌟 أولوية قصوى لاختراق وضع توفير البطارية 🌟
-      android: {
-        priority: "high",
-      },
-      // 🌟 البيانات المرفقة لكي يعرف السيرفس ووركر أين يوجه الطالب عند الضغط 🌟
-      data: {
-        url: "/"
-      }
-    }; */ 
-
     const message = {
+      notification: { title, body },
       tokens: tokens,
-      notification: { 
-        title: title, 
-        body: body 
-      },
+      // 🌟 هذا هو الجزء الحاسم لإيقاظ هواتف أندرويد من النوم العميق 🌟
       android: {
         priority: "high",
+        notification: {
+          channel_id: "default",
+          priority: "high",
+          sound: "default"
+        }
       },
+      // 🌟 نكرر البيانات هنا لضمان التقاطها في الخلفية إذا تم تجاهل قسم notification 🌟
       data: {
         title: title,
         body: body,

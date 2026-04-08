@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getToken } from 'firebase/messaging';
-import { messaging, database } from './firebase';
+// import { messaging, database } from './firebase';
+import { getToken, onMessage } from 'firebase/messaging';
 import { ref, set } from 'firebase/database';
 
 // --- 🎨 طقم أيقونات الثيمات المزاجية ---
@@ -110,6 +111,16 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   };
+
+  // 🌟 التقاط الإشعار والتطبيق مفتوح أمام المستخدم 🌟
+  useEffect(() => {
+    const unsubscribe = onMessage(messaging, (payload) => {
+      if (payload.notification) {
+        showAppToast(`🔔 ${payload.notification.title}: ${payload.notification.body}`);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleSubscribe = async () => {
     if (isSubscribed) {

@@ -24,17 +24,21 @@ export default async function handler(req, res) {
     }
 
     const message = {
-  // 🌟 حذفنا قسم notification من هنا لمنع التكرار التلقائي 🌟
-  tokens: tokens,
-  android: {
-    priority: "high",
-  },
-  data: {
-    title: title,
-    body: body,
-    url: "/"
-  }
-};
+      tokens: tokens,
+      // 🌟 أعدنا هذا القسم لكي يفهم الأندرويد أنه إشعار هام ويوقظ الهاتف 🌟
+      notification: { 
+        title: title, 
+        body: body 
+      },
+      // 🌟 أولوية قصوى لاختراق وضع توفير البطارية 🌟
+      android: {
+        priority: "high",
+      },
+      // 🌟 البيانات المرفقة لكي يعرف السيرفس ووركر أين يوجه الطالب عند الضغط 🌟
+      data: {
+        url: "/"
+      }
+    };
 
     // إرسال الإشعار لجميع الأجهزة المخزنة
     const response = await admin.messaging().sendEachForMulticast(message);

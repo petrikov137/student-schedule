@@ -11,42 +11,21 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// استقبال الإشعار والتطبيق مغلق
-messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  
-  // استخراج العنوان والنص بأمان تام من أي مكان في الـ payload
-  const notificationTitle = payload.notification?.title || payload.data?.title || 'تنبيه';
-  const notificationOptions = {
-   tag: 'versa-update', // 🌟 هذا السطر يمنع التكرار
-    body: payload.notification?.body || payload.data?.body || 'تحديث جديد',
-    icon: '/pwa-192x192.png', // 🌟 نستخدم أيقونة التطبيق الحقيقية هنا
-    badge: '/pwa-192x192.png',
-    vibrate: [200, 100, 200],
-    dir: 'rtl',
-    data: { url: payload.data?.url || '/' } 
-  };
+// المتصفح سيظهر الإشعار تلقائياً في الخلفية (لذلك لا نكتب كود الإظهار هنا لمنع التكرار)
 
-  return self.registration.showNotification(notificationTitle, notificationOptions);
-});
-
-// 🌟 عند الضغط على الإشعار: يأخذك للجدول مباشرة 🌟
+// 🌟 عند الضغط على الإشعار: نفتح التطبيق 🌟
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data.url;
+  const urlToOpen = event.notification.data?.url || self.location.origin;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // إذا كان التطبيق مفتوحاً في الخلفية، اجلبه للمقدمة
       for (let client of windowClients) {
         if (client.url === urlToOpen && 'focus' in client) {
           return client.focus();
         }
       }
-      // إذا كان التطبيق مغلقاً تماماً، افتح نافذة جديدة
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
+      if (clients.openWindow) return clients.openWindow(urlToOpen);
     })
   );
 });

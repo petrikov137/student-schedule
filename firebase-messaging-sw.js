@@ -18,6 +18,7 @@ messaging.onBackgroundMessage((payload) => {
   // استخراج العنوان والنص بأمان تام من أي مكان في الـ payload
   const notificationTitle = payload.notification?.title || payload.data?.title || 'تنبيه';
   const notificationOptions = {
+    tag: 'versa-update', // 🌟 هذا السطر يمنع التكرار
     body: payload.notification?.body || payload.data?.body || 'تحديث جديد',
     icon: '/pwa-192x192.png', // 🌟 نستخدم أيقونة التطبيق الحقيقية هنا
     badge: '/pwa-192x192.png',

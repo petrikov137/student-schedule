@@ -52,7 +52,6 @@ const ScheduleIcon = () => (
 const BellIcon = ({ isSubscribed }) => {
   return (
     <div style={{ position: 'relative', width: '18px', height: '18px' }}>
-      {/* أيقونة الجرس الأساسية (تُملأ باللون عند التفعيل) */}
       <svg 
         width="18" height="18" viewBox="0 0 24 24" 
         fill={isSubscribed ? "currentColor" : "none"} 
@@ -66,7 +65,6 @@ const BellIcon = ({ isSubscribed }) => {
         <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
       </svg>
       
-      {/* الخط المائل المكتوم مع الأنيميشن */}
       <svg 
         width="18" height="18" viewBox="0 0 24 24" 
         style={{
@@ -78,10 +76,10 @@ const BellIcon = ({ isSubscribed }) => {
           x1="3" y1="3" x2="21" y2="21" 
           stroke="currentColor" strokeWidth="2" strokeLinecap="round"
           style={{
-            strokeDasharray: 26, /* طول الخط التقريبي */
-            strokeDashoffset: isSubscribed ? 26 : 0, /* إخفاء الخط أو إظهاره */
-            transition: 'stroke-dashoffset 0.4s cubic-bezier(0.4, 0, 0.2, 1)', /* حركة الرسم من الأعلى للأسفل */
-            opacity: isSubscribed ? 0 : 1 /* إخفاء إضافي عندما يكون مفعلاً */
+            strokeDasharray: 26,
+            strokeDashoffset: isSubscribed ? 26 : 0, 
+            transition: 'stroke-dashoffset 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            opacity: isSubscribed ? 0 : 1 
           }}
         />
       </svg>
@@ -102,11 +100,9 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
 
   const [isSubscribed, setIsSubscribed] = useState(localStorage.getItem('fcm_subscribed') === 'true');
   
-  // 🌟 حالات إشعارات Toast 🌟
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
 
-  // 🌟 حالة اهتزاز الجرس 🌟
   const [isSwinging, setIsSwinging] = useState(false);
 
   const showAppToast = (message) => {
@@ -121,8 +117,7 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
       localStorage.setItem('fcm_subscribed', 'false');
       showAppToast('تم كتم الإشعارات 🔕');
     } else {
-try {
-        // تفعيل أنيميشن التأرجح
+      try {
         setIsSwinging(true);
         setTimeout(() => setIsSwinging(false), 800);
 
@@ -132,13 +127,13 @@ try {
           localStorage.setItem('fcm_subscribed', 'true');
           
           try {
-            // 🌟 تسجيل الـ Service Worker برابط Vite الديناميكي ليعمل مع GitHub Pages 🌟
-            const swRegistration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}firebase-messaging-sw.js`);
+            // 🌟 استخدام مسار صريح متوافق مع Vercel 🌟
+            const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
             
-            // إعطاء فايربيس هذا التسجيل
+            // 🌟 تنبيه: يجب وضع مفتاح الـ VAPID الخاص بك هنا 🌟
             const token = await getToken(messaging, { 
-              vapidKey: 'YOUR_VAPID_KEY_HERE', 
-              serviceWorkerRegistration: swRegistration // 🌟 السطر الجديد
+              vapidKey: 'BFS8ALUfmon4Z_FBnAcwdM2IWgS-kyr8gnd4UELpL9DGjtwWB-TTzPusvivgdjgxSv7BZMpVuvt2q-P7fGXQkjY',
+              serviceWorkerRegistration: swRegistration 
             });
             
             if (token) {
@@ -222,7 +217,6 @@ try {
             pointer-events: none; z-index: 2;
           }
           
-          /* 🌟 أنيميشن تأرجح الجرس 🌟 */
           @keyframes swing-bell {
             0% { transform: rotate(0deg); }
             15% { transform: rotate(15deg); }
@@ -244,7 +238,6 @@ try {
         height: '48px', backgroundColor: 'transparent', borderBottom: '1px solid var(--border-line)', position: 'relative', marginBottom: '20px'
       }}>
         
-        {/* 🌟 رسالة التفعيل تظهر في منتصف شريط الهيدر 🌟 */}
         <div 
           style={{
             position: 'absolute',
@@ -261,7 +254,7 @@ try {
             border: '1px solid var(--primary-color)',
             zIndex: 50,
             fontWeight: 'bold',
-            fontSize: '12px', /* حجم أنيق مناسب لارتفاع الهيدر */
+            fontSize: '12px',
             textAlign: 'center',
             transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
             whiteSpace: 'nowrap'
@@ -336,15 +329,12 @@ try {
           </div>
         </div>
 
-        {/* 🌟 أزرار التحكم 🌟 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-
-          {/* 🌟 زر الجرس مع تفعيل حالة الأنيميشن 🌟 */}
           <button 
             onClick={handleSubscribe}
             className={isSwinging ? 'swinging' : ''} 
             style={{
-              background: 'transparent', border: 'none', color: 'var(--primary-color)', /* أصبح بلون أساسي دائماً ليطابق الملازم */
+              background: 'transparent', border: 'none', color: 'var(--primary-color)',
               cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'all 0.3s ease',
               display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
               width: '32px', height: '32px',
@@ -357,7 +347,6 @@ try {
             <BellIcon isSubscribed={isSubscribed} />
           </button>
 
-          {/* 🌟 زر الملازم والجدول 🌟 */}
           <button 
             onClick={() => onTabChange(activeTab === 'schedule' ? 'materials' : 'schedule')}
             style={{
@@ -386,9 +375,7 @@ try {
               <ScheduleIcon />
             </div>
           </button>
-
         </div>
-
       </header>
     </>
   );

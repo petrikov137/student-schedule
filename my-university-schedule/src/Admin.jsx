@@ -151,11 +151,8 @@ function Admin() {
     } catch (error) { showNotification("فشل التغيير: " + error.message); }
   };
 
-  // 🌟 دالة إرسال الإشعار المنبثق الحقيقي (تعمل والتطبيق مغلق) 🌟
+  // 🌟 دالة إرسال الإشعار المنبثق الحقيقي (تعمل والتطبيق مغلق) عبر سيرفر Vercel 🌟
   const sendRealPushNotification = async (title, body) => {
-    // ⚠️ ضع مفتاح الخادم (Server Key) الخاص بك هنا بدلاً من الكلمة ⚠️
-    const YOUR_SERVER_KEY = "ضعه_هنا"; 
-
     try {
       // 1. جلب توكنات الأجهزة المشتركة
       const tokensSnapshot = await get(ref(database, 'fcmTokens'));
@@ -166,32 +163,21 @@ function Admin() {
       
       const tokens = Object.keys(tokensSnapshot.val());
 
-      // 2. تجهيز بيانات الإشعار مع إعدادات الأندرويد للمنبثق
-      const notificationData = {
-        registration_ids: tokens,
-        notification: {
-          title: title,
-          body: body,
-          icon: "https://petrikov.github.io/uni-schedule-99109/vite.svg", // رابط أيقونتك المباشر
-          sound: "default",
-          android_channel_id: "high_priority" // ضروري لجعله ينبثق
-        },
-        data: {
-          url: "https://petrikov.github.io/uni-schedule-99109/" // الرابط الذي يفتح عند النقر
-        },
-        priority: "high"
-      };
-
-      // 3. إرسال الطلب لخوادم جوجل
-      await fetch('https://fcm.googleapis.com/fcm/send', {
+      // 2. إرسال الطلب إلى سيرفر Vercel الخاص بك
+      const response = await fetch('/api/send-notification', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `key=${YOUR_SERVER_KEY}`
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(notificationData)
+        body: JSON.stringify({ title, body, tokens })
       });
-      console.log('تم إرسال الإشعار الحقيقي بنجاح');
+      
+      const result = await response.json();
+      if (result.success) {
+        console.log('تم إرسال الإشعار الحقيقي بنجاح عبر السيرفر');
+      } else {
+        console.error('فشل الإرسال من السيرفر:', result.error);
+      }
     } catch (error) {
       console.error('خطأ في إرسال الإشعار:', error);
     }

@@ -12,40 +12,30 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  console.log('Background message: ', payload);
-
-  const title = payload.notification?.title || payload.data?.title || 'تنبيه جديد';
+  // 🌟 نقرأ من payload.data لأن السيرفر أرسلها هكذا 🌟
+  const title = payload.data?.title || "تنبيه جديد";
   const options = {
-    body: payload.notification?.body || payload.data?.body || 'تحديث في الجدول',
+    body: payload.data?.body || "يوجد تحديث",
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
     dir: 'rtl',
-    data: { url: payload.data?.url || '/' },
-    // 🌟 أضف Tag لمنع تكرار الإشعارات القديمة 🌟
-    tag: 'uni-notif-tag' 
+    vibrate: [200, 100, 200],
+    data: { url: payload.data?.url || '/' }
   };
 
-  // استخدم self.registration مباشرة لضمان التنفيذ
+  // 🌟 كلمة return هنا هي التي تمنع ظهور الرسالة الصامتة المزعجة 🌟
   return self.registration.showNotification(title, options);
 });
 
-// 🌟 عند الضغط على الإشعار: يأخذك للجدول مباشرة 🌟
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data.url;
-
+  const urlToOpen = event.notification.data?.url || '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // إذا كان التطبيق مفتوحاً في الخلفية، اجلبه للمقدمة
       for (let client of windowClients) {
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
-        }
+        if (client.url === urlToOpen && 'focus' in client) return client.focus();
       }
-      // إذا كان التطبيق مغلقاً تماماً، افتح نافذة جديدة
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
+      if (clients.openWindow) return clients.openWindow(urlToOpen);
     })
   );
 });

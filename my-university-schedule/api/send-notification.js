@@ -1,6 +1,5 @@
 import admin from 'firebase-admin';
 
-// هذا الكود يتصل بفايربيس بطريقة آمنة باستخدام "أسرار" سنضعها في لوحة Vercel لاحقاً
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -12,45 +11,28 @@ if (!admin.apps.length) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'الطريقة غير مسموحة' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'الطريقة غير مسموحة' });
 
   try {
     const { title, body, tokens } = req.body;
+    if (!tokens || tokens.length === 0) return res.status(400).json({ error: 'لا يوجد أجهزة' });
 
-    if (!tokens || tokens.length === 0) {
-      return res.status(400).json({ error: 'لا يوجد أجهزة مشتركة' });
-    }
-
- const message = {
+    const message = {
       tokens: tokens,
-      notification: { title, body },
+      // 🌟 نرسل البيانات في قسم data فقط لتجنب التضارب 🌟
       data: {
-        title: title,
-        body: body,
+        title: title || "تنبيه جديد",
+        body: body || "تحديث في الجدول",
         url: "/"
       },
-      android: {
-        priority: "high", // لإيقاظ الجهاز
-      },
-      // 🌟 أضف هذا الجزء لضمان استيقاظ المتصفح (Web Push) 🌟
-      webpush: {
-        headers: {
-          Urgency: "high"
-        },
-        fcm_options: {
-          link: "/"
-        }
-      }
+      // 🌟 أولوية قصوى لاختراق النوم العميق 🌟
+      android: { priority: "high" },
+      webpush: { headers: { Urgency: "high" } }
     };
 
-    // إرسال الإشعار لجميع الأجهزة المخزنة
     const response = await admin.messaging().sendEachForMulticast(message);
-    
     res.status(200).json({ success: true, response });
   } catch (error) {
-    console.error('خطأ في إرسال الإشعار:', error);
     res.status(500).json({ error: 'فشل إرسال الإشعار' });
   }
 }

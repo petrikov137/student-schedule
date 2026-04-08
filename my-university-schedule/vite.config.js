@@ -20,11 +20,11 @@ export default defineConfig({
         theme_color: '#1a1a1a', // لون شريط الهاتف من الأعلى
         background_color: '#1a1a1a', // لون شاشة التحميل
         display: 'standalone', // جعله يفتح كتطبيق مستقل بدون شريط المتصفح
-        start_url: '/student-schedule/', // الرابط الذي سيفتح عليه التطبيق
+        start_url: '/', // الرابط الذي سيفتح عليه التطبيق
       }
     })
   ],
-  base: '/student-schedule/',
+  base: '/',
   
   // 🌟 هذا هو القسم الجديد للسماح بروابط النفق (localtunnel) 🌟
   server: {

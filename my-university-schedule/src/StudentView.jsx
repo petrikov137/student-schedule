@@ -546,7 +546,7 @@ function StudentView() {
                 {[
                   { id: 'glass', icon: <GlassIcon />, label: 'زجاج' }, 
                   { id: 'matrix', icon: <MatrixIcon />, label: 'مصفوفة' },
-                  { id: 'fox', icon: <FoxIcon />, label: 'الثعلب' }
+                  { id: 'fox', icon: <FoxIcon />, label: 'ثعلب' }
                 ].map((t) => {
                   const isHovered = hoveredTheme === t.id;
                   const isPressed = pressedTheme === t.id;

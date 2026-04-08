@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getToken } from 'firebase/messaging';
 import { getToken, onMessage } from 'firebase/messaging';
+import { messaging, database } from './firebase';
 import { ref, set } from 'firebase/database';
-
 // --- 🎨 طقم أيقونات الثيمات المزاجية ---
 
 const HeartsIcon = ({ color }) => (

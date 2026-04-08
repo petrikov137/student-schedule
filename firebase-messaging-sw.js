@@ -11,29 +11,41 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// 🌟 إعادة تفعيل الإظهار اليدوي (هذا ما سيسبب التكرار لكنه يضمن الوصول)
+// استقبال الإشعار والتطبيق مغلق
 messaging.onBackgroundMessage((payload) => {
-  const notificationTitle = payload.notification?.title || "تنبيه جديد";
+  console.log('[firebase-messaging-sw.js] Received background message ', payload);
+  
+  // استخراج العنوان والنص بأمان تام من أي مكان في الـ payload
+  const notificationTitle = payload.notification?.title || payload.data?.title || 'تنبيه';
   const notificationOptions = {
-    body: payload.notification?.body || "لديك تحديث في الجدول",
-    icon: '/pwa-192x192.png',
+    body: payload.notification?.body || payload.data?.body || 'تحديث جديد',
+    icon: '/pwa-192x192.png', // 🌟 نستخدم أيقونة التطبيق الحقيقية هنا
     badge: '/pwa-192x192.png',
+    vibrate: [200, 100, 200],
     dir: 'rtl',
-    data: { url: '/' }
+    data: { url: payload.data?.url || '/' } 
   };
 
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
+// 🌟 عند الضغط على الإشعار: يأخذك للجدول مباشرة 🌟
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || '/';
+  const urlToOpen = event.notification.data.url;
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // إذا كان التطبيق مفتوحاً في الخلفية، اجلبه للمقدمة
       for (let client of windowClients) {
-        if (client.url === urlToOpen && 'focus' in client) return client.focus();
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
+        }
       }
-      if (clients.openWindow) return clients.openWindow(urlToOpen);
+      // إذا كان التطبيق مغلقاً تماماً، افتح نافذة جديدة
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
     })
   );
 });

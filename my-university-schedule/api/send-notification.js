@@ -23,7 +23,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'لا يوجد أجهزة مشتركة' });
     }
 
-    const message = {
+    /* const message = {
       tokens: tokens,
       // 🌟 أعدنا هذا القسم لكي يفهم الأندرويد أنه إشعار هام ويوقظ الهاتف 🌟
       notification: { 
@@ -36,6 +36,22 @@ export default async function handler(req, res) {
       },
       // 🌟 البيانات المرفقة لكي يعرف السيرفس ووركر أين يوجه الطالب عند الضغط 🌟
       data: {
+        url: "/"
+      }
+    }; */ 
+
+    const message = {
+      tokens: tokens,
+      notification: { 
+        title: title, 
+        body: body 
+      },
+      android: {
+        priority: "high",
+      },
+      data: {
+        title: title,
+        body: body,
         url: "/"
       }
     };

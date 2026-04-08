@@ -11,19 +11,27 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// المتصفح سيظهر الإشعار تلقائياً في الخلفية (لذلك لا نكتب كود الإظهار هنا لمنع التكرار)
+// 🌟 إعادة تفعيل الإظهار اليدوي (هذا ما سيسبب التكرار لكنه يضمن الوصول)
+messaging.onBackgroundMessage((payload) => {
+  const notificationTitle = payload.notification?.title || "تنبيه جديد";
+  const notificationOptions = {
+    body: payload.notification?.body || "لديك تحديث في الجدول",
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
+    dir: 'rtl',
+    data: { url: '/' }
+  };
 
-// 🌟 عند الضغط على الإشعار: نفتح التطبيق 🌟
+  return self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || self.location.origin;
-
+  const urlToOpen = event.notification.data?.url || '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       for (let client of windowClients) {
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
-        }
+        if (client.url === urlToOpen && 'focus' in client) return client.focus();
       }
       if (clients.openWindow) return clients.openWindow(urlToOpen);
     })

@@ -224,7 +224,7 @@ function StudentView() {
   }, []);
 
 // 🌟 مستمع الإشعارات الفورية للطالب (محدث ليدعم هواتف الأندرويد) 🌟
- {/* useEffect(() => {
+  useEffect(() => {
     const notifRef = ref(database, 'latest_notification');
     const unsubscribe = onValue(notifRef, (snapshot) => {
       const data = snapshot.val();
@@ -257,9 +257,9 @@ function StudentView() {
       }
     });
     return () => unsubscribe();
-  }, []); */}
+  }, []); 
 
-  
+
   const getDayDataHelper = (weekIdx, dayName) => {
     const weekKey = `week_${weekIdx}`;
     return allScheduleData[weekKey] && allScheduleData[weekKey][dayName] ? allScheduleData[weekKey][dayName] : null;

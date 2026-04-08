@@ -23,7 +23,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'لا يوجد أجهزة مشتركة' });
     }
 
-  const message = {
+    const message = {
   // 🌟 حذفنا قسم notification من هنا لمنع التكرار التلقائي 🌟
   tokens: tokens,
   android: {
@@ -35,13 +35,6 @@ export default async function handler(req, res) {
     url: "/"
   }
 };
-      // 🌟 نكرر البيانات هنا لضمان التقاطها في الخلفية إذا تم تجاهل قسم notification 🌟
-      data: {
-        title: title,
-        body: body,
-        url: "/"
-      }
-    };
 
     // إرسال الإشعار لجميع الأجهزة المخزنة
     const response = await admin.messaging().sendEachForMulticast(message);

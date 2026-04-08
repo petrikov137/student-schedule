@@ -128,11 +128,13 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
           
           try {
             // 🌟 استخدام مسار صريح متوافق مع Vercel 🌟
-            const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+            const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+  scope: '/'
+});
             
             // 🌟 تنبيه: يجب وضع مفتاح الـ VAPID الخاص بك هنا 🌟
             const token = await getToken(messaging, { 
-              vapidKey: 'BFS8ALUfmon4Z_FBnAcwdM2IWgS-kyr8gnd4UELpL9DGjtwWB-TTzPusvivgdjgxSv7BZMpVuvt2q-P7fGXQkjY',
+              vapidKey: 'BE-ZU08UafjtNFOXQYvEW_OOjmTdo-D7SNCS4UVXEsmueTo-Nt84D6j5yM5srwrxVEu7xnC24LYjR1FdrjW5fuI',
               serviceWorkerRegistration: swRegistration 
             });
             

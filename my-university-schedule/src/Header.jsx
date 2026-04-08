@@ -162,6 +162,30 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
     }
   };
 
+  // 🌟 التقاط الإشعارات والتطبيق مفتوح وتحويلها لإشعار نظام 🌟
+  useEffect(() => {
+    if (!messaging) return;
+
+    const unsubscribe = onMessage(messaging, (payload) => {
+      console.log('استلمت إشعار والتطبيق مفتوح: ', payload);
+      
+      const title = payload.notification?.title || payload.data?.title || "تنبيه جديد";
+      const options = {
+        body: payload.notification?.body || payload.data?.body,
+        icon: '/pwa-192x192.png', // تأكد أن الأيقونة موجودة في مجلد public
+        vibrate: [200, 100, 200],
+        dir: 'rtl'
+      };
+
+      // هذا الأمر يجبر المتصفح أو الهاتف على إظهار إشعار رسمي حتى لو كنت داخل الموقع
+      if (Notification.permission === 'granted') {
+        new Notification(title, options);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (themesContainerRef.current && !themesContainerRef.current.contains(event.target)) {

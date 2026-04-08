@@ -11,22 +11,22 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// استقبال الإشعار والتطبيق مغلق
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  
-  // استخراج العنوان والنص بأمان تام من أي مكان في الـ payload
-  const notificationTitle = payload.notification?.title || payload.data?.title || 'تنبيه';
-  const notificationOptions = {
-    body: payload.notification?.body || payload.data?.body || 'تحديث جديد',
-    icon: '/pwa-192x192.png', // 🌟 نستخدم أيقونة التطبيق الحقيقية هنا
+  console.log('Background message: ', payload);
+
+  const title = payload.notification?.title || payload.data?.title || 'تنبيه جديد';
+  const options = {
+    body: payload.notification?.body || payload.data?.body || 'تحديث في الجدول',
+    icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
-    vibrate: [200, 100, 200],
     dir: 'rtl',
-    data: { url: payload.data?.url || '/' } 
+    data: { url: payload.data?.url || '/' },
+    // 🌟 أضف Tag لمنع تكرار الإشعارات القديمة 🌟
+    tag: 'uni-notif-tag' 
   };
 
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+  // استخدم self.registration مباشرة لضمان التنفيذ
+  return self.registration.showNotification(title, options);
 });
 
 // 🌟 عند الضغط على الإشعار: يأخذك للجدول مباشرة 🌟

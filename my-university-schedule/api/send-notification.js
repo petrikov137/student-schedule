@@ -23,23 +23,25 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'لا يوجد أجهزة مشتركة' });
     }
 
-    const message = {
-      notification: { title, body },
+ const message = {
       tokens: tokens,
-      // 🌟 هذا هو الجزء الحاسم لإيقاظ هواتف أندرويد من النوم العميق 🌟
-      android: {
-        priority: "high",
-        notification: {
-          channel_id: "default",
-          priority: "high",
-          sound: "default"
-        }
-      },
-      // 🌟 نكرر البيانات هنا لضمان التقاطها في الخلفية إذا تم تجاهل قسم notification 🌟
+      notification: { title, body },
       data: {
         title: title,
         body: body,
         url: "/"
+      },
+      android: {
+        priority: "high", // لإيقاظ الجهاز
+      },
+      // 🌟 أضف هذا الجزء لضمان استيقاظ المتصفح (Web Push) 🌟
+      webpush: {
+        headers: {
+          Urgency: "high"
+        },
+        fcm_options: {
+          link: "/"
+        }
       }
     };
 

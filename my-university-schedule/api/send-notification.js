@@ -23,18 +23,18 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'لا يوجد أجهزة مشتركة' });
     }
 
-    const message = {
-      notification: { title, body },
-      tokens: tokens,
-      // 🌟 هذا هو الجزء الحاسم لإيقاظ هواتف أندرويد من النوم العميق 🌟
-      android: {
-        priority: "high",
-        notification: {
-          channel_id: "default",
-          priority: "high",
-          sound: "default"
-        }
-      },
+  const message = {
+  // 🌟 حذفنا قسم notification من هنا لمنع التكرار التلقائي 🌟
+  tokens: tokens,
+  android: {
+    priority: "high",
+  },
+  data: {
+    title: title,
+    body: body,
+    url: "/"
+  }
+};
       // 🌟 نكرر البيانات هنا لضمان التقاطها في الخلفية إذا تم تجاهل قسم notification 🌟
       data: {
         title: title,

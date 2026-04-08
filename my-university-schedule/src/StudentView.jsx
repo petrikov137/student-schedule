@@ -225,7 +225,7 @@ function StudentView() {
 
 // 🌟 مستمع الإشعارات الفورية للطالب (محدث ليدعم هواتف الأندرويد) 🌟
   useEffect(() => {
-    const notifRef = ref(database, 'latest_notification');
+   // const notifRef = ref(database, 'latest_notification'); تعطيل لمنع تكرار الاشعار عند الدخول للتطبيق
     const unsubscribe = onValue(notifRef, (snapshot) => {
       const data = snapshot.val();
       if (data && data.timestamp) {

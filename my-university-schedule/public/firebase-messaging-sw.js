@@ -13,13 +13,17 @@ const messaging = firebase.messaging();
 
 // استقبال الإشعار والتطبيق مغلق
 messaging.onBackgroundMessage((payload) => {
-  const notificationTitle = payload.notification.title;
+  console.log('[firebase-messaging-sw.js] Received background message ', payload);
+  
+  // استخراج العنوان والنص بأمان تام من أي مكان في الـ payload
+  const notificationTitle = payload.notification?.title || payload.data?.title || 'تنبيه';
   const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/vite.svg', // أيقونة التطبيق (يمكنك تغييرها لاحقاً)
-    badge: '/vite.svg', // الأيقونة الصغيرة في شريط الإشعارات العلوي
+    body: payload.notification?.body || payload.data?.body || 'تحديث جديد',
+    icon: '/pwa-192x192.png', // 🌟 نستخدم أيقونة التطبيق الحقيقية هنا
+    badge: '/pwa-192x192.png',
+    vibrate: [200, 100, 200],
     dir: 'rtl',
-    data: { url: payload.data?.url || '/' } // حفظ الرابط للضغط عليه
+    data: { url: payload.data?.url || '/' } 
   };
 
   return self.registration.showNotification(notificationTitle, notificationOptions);

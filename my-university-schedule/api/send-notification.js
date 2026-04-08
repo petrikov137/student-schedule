@@ -26,6 +26,21 @@ export default async function handler(req, res) {
     const message = {
       notification: { title, body },
       tokens: tokens,
+      // 🌟 هذا هو الجزء الحاسم لإيقاظ هواتف أندرويد من النوم العميق 🌟
+      android: {
+        priority: "high",
+        notification: {
+          channel_id: "default",
+          priority: "high",
+          sound: "default"
+        }
+      },
+      // 🌟 نكرر البيانات هنا لضمان التقاطها في الخلفية إذا تم تجاهل قسم notification 🌟
+      data: {
+        title: title,
+        body: body,
+        url: "/"
+      }
     };
 
     // إرسال الإشعار لجميع الأجهزة المخزنة

@@ -15,7 +15,7 @@ export default defineConfig({
       },
       manifest: {
         name: 'الجدول الجامعي',
-        short_name: 'الجدول',
+        short_name: 'Versa',
         description: 'جدول المحاضرات الجامعي الذكي',
         theme_color: '#1a1a1a', // لون شريط الهاتف من الأعلى
         background_color: '#1a1a1a', // لون شاشة التحميل

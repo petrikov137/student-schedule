@@ -223,7 +223,7 @@ function StudentView() {
 
   }, []);
 
-// 🌟 مستمع الإشعارات الفورية للطالب (محدث ليدعم هواتف الأندرويد) 🌟
+// 🌟 مستمع الإشعارات الفورية للطالب (محدث ليدعم هواتف الأندرويد ويمنع التكرار) 🌟
   useEffect(() => {
     const notifRef = ref(database, 'latest_notification');
     const unsubscribe = onValue(notifRef, (snapshot) => {
@@ -234,7 +234,13 @@ function StudentView() {
         if (!lastNotifTime || data.timestamp > parseInt(lastNotifTime)) {
           const isUserSubscribed = localStorage.getItem('fcm_subscribed') === 'true';
           
-          if (Notification.permission === 'granted' && isUserSubscribed) {
+          // 🌟 الحل الجذري لمنع الإزعاج والتكرار:
+          // نحسب عمر الإشعار (الوقت الحالي ناقص وقت الإرسال من السيرفر)
+          // إذا كان أقل من دقيقة (60000 مللي ثانية)، نظهره. 
+          // إذا كان أقدم من دقيقة، يعني أن الطالب استلمه في الخلفية سابقاً، فنقوم بتحديث الوقت بصمت فقط.
+          const notificationAge = Date.now() - data.timestamp;
+          
+          if (notificationAge < 60000 && Notification.permission === 'granted' && isUserSubscribed) {
             
             // 🌟: استخدام Service Worker لعرض الإشعار 🌟
             if ('serviceWorker' in navigator) {
@@ -252,6 +258,7 @@ function StudentView() {
             }
 
           }
+          // تحديث الوقت المرجعي دائماً لكي لا يتكرر الفحص
           localStorage.setItem('last_notif_time', data.timestamp.toString());
         }
       }

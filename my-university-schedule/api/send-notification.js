@@ -19,15 +19,30 @@ export default async function handler(req, res) {
 
     const message = {
       tokens: tokens,
-      // 🌟 نرسل البيانات في قسم data فقط لتجنب التضارب 🌟
+      // 🌟 كائن notification إجباري لإيقاظ الأجهزة المغلقة والمقفلة برقم سري 🌟
+      notification: {
+        title: title || "تنبيه جديد",
+        body: body || "تحديث في الجدول"
+      },
       data: {
         title: title || "تنبيه جديد",
         body: body || "تحديث في الجدول",
-        url: "/"
+        url: "/",
+        sentAt: Date.now().toString() // إرسال وقت الإرسال الأصلي
       },
-      // 🌟 أولوية قصوى لاختراق النوم العميق 🌟
-      android: { priority: "high" },
-      webpush: { headers: { Urgency: "high" } }
+      android: { 
+        priority: "high",
+        ttl: 86400000 // 🌟 بقاء الإشعار لـ 24 ساعة في السيرفر إذا كان هاتف الطالب غير متصل 🌟
+      },
+      webpush: { 
+        headers: { Urgency: "high" },
+        notification: {
+          icon: '/pwa-192x192.png',
+          dir: 'rtl',
+          vibrate: [200, 100, 200]
+        },
+        fcm_options: { link: '/' }
+      }
     };
 
     const response = await admin.messaging().sendEachForMulticast(message);

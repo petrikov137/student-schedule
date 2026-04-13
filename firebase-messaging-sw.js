@@ -15,6 +15,13 @@ const messaging = firebase.messaging();
 // 1. قسم الإشعارات (Notifications)
 // ==========================================
 messaging.onBackgroundMessage((payload) => {
+  // 🌟 منع التكرار: بما أننا نرسل notification من السيرفر، المتصفح سيعرض الإشعار تلقائياً.
+  // إذا اكتشفنا وجود notification نوقف العرض اليدوي هنا لكي لا يصل الإشعار مرتين.
+  if (payload.notification) {
+    return; 
+  }
+
+  // الكود القديم يعمل فقط كاحتياطي في حال إرسال بيانات (Data) فقط مستقبلاً
   const title = payload.data?.title || "تنبيه جديد";
   const options = {
     body: payload.data?.body || "يوجد تحديث",
@@ -69,25 +76,20 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      // إذا كان الملف موجوداً في الكاش، نعرضه فوراً (ليعمل أوفلاين)
       if (cachedResponse) {
-        // ونجلب النسخة الأحدث في الخلفية للمرة القادمة
         fetch(event.request).then((networkResponse) => {
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, networkResponse.clone());
           });
-        }).catch(() => {}); // نتجاهل الخطأ إذا كان أوفلاين حقاً
+        }).catch(() => {}); 
         return cachedResponse;
       }
-
-      // إذا لم يكن في الكاش، نجلبه من الإنترنت ونحفظه
       return fetch(event.request).then((networkResponse) => {
         return caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, networkResponse.clone());
           return networkResponse;
         });
-      }).catch(() => {
-      });
+      }).catch(() => {});
     })
   );
 });

@@ -11,8 +11,10 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// ==========================================
+// 1. قسم الإشعارات (Notifications)
+// ==========================================
 messaging.onBackgroundMessage((payload) => {
-  // 🌟 نقرأ من payload.data لأن السيرفر أرسلها هكذا 🌟
   const title = payload.data?.title || "تنبيه جديد";
   const options = {
     body: payload.data?.body || "يوجد تحديث",
@@ -22,8 +24,6 @@ messaging.onBackgroundMessage((payload) => {
     vibrate: [200, 100, 200],
     data: { url: payload.data?.url || '/' }
   };
-
-  // 🌟 كلمة return هنا هي التي تمنع ظهور الرسالة الصامتة المزعجة 🌟
   return self.registration.showNotification(title, options);
 });
 
@@ -36,6 +36,58 @@ self.addEventListener('notificationclick', (event) => {
         if (client.url === urlToOpen && 'focus' in client) return client.focus();
       }
       if (clients.openWindow) return clients.openWindow(urlToOpen);
+    })
+  );
+});
+
+// ==========================================
+// 2. قسم الأوفلاين (Offline Caching)
+// ==========================================
+const CACHE_NAME = 'versa-schedule-cache-v2';
+
+// تنصيب السيرفس ووركر فوراً
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+// تنظيف الكاش القديم إن وجد
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+// اعتراض الطلبات وحفظها للعمل أوفلاين
+self.addEventListener('fetch', (event) => {
+  // نتجاهل طلبات فايربيس والـ API لأننا نريد كاش للواجهة فقط
+  if (
+    event.request.method !== 'GET' ||
+    event.request.url.includes('firebaseio.com') ||
+    event.request.url.includes('googleapis.com') ||
+    event.request.url.includes('/api/')
+  ) {
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      // إذا كان الملف موجوداً في الكاش، نعرضه فوراً (ليعمل أوفلاين)
+      if (cachedResponse) {
+        // ونجلب النسخة الأحدث في الخلفية للمرة القادمة
+        fetch(event.request).then((networkResponse) => {
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, networkResponse.clone());
+          });
+        }).catch(() => {}); // نتجاهل الخطأ إذا كان أوفلاين حقاً
+        return cachedResponse;
+      }
+
+      // إذا لم يكن في الكاش، نجلبه من الإنترنت ونحفظه
+      return fetch(event.request).then((networkResponse) => {
+        return caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, networkResponse.clone());
+          return networkResponse;
+        });
+      }).catch(() => {
+      });
     })
   );
 });

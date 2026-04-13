@@ -19,7 +19,6 @@ export default async function handler(req, res) {
 
     const message = {
       tokens: tokens,
-      // 🌟 كائن notification إجباري لإيقاظ الأجهزة المغلقة والمقفلة برقم سري 🌟
       notification: {
         title: title || "تنبيه جديد",
         body: body || "تحديث في الجدول"
@@ -28,20 +27,20 @@ export default async function handler(req, res) {
         title: title || "تنبيه جديد",
         body: body || "تحديث في الجدول",
         url: "/",
-        sentAt: Date.now().toString() // إرسال وقت الإرسال الأصلي
+        sentAt: Date.now().toString()
       },
-      android: { 
+      android: {
         priority: "high",
-        ttl: 86400000 // 🌟 بقاء الإشعار لـ 24 ساعة في السيرفر إذا كان هاتف الطالب غير متصل 🌟
+        ttl: 86400000 
       },
-      webpush: { 
-        headers: { Urgency: "high" },
-        notification: {
-          icon: '/pwa-192x192.png',
-          dir: 'rtl',
-          vibrate: [200, 100, 200]
+      webpush: {
+        headers: {
+          Urgency: "high",
+          TTL: "86400"
         },
-        fcm_options: { link: '/' }
+        fcm_options: {
+          link: "/"
+        }
       }
     };
 

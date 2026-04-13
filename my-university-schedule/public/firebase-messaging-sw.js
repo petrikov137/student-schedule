@@ -15,13 +15,9 @@ const messaging = firebase.messaging();
 // 1. قسم الإشعارات (Notifications)
 // ==========================================
 messaging.onBackgroundMessage((payload) => {
-  // 🌟 منع التكرار: بما أننا نرسل notification من السيرفر، المتصفح سيعرض الإشعار تلقائياً.
-  // إذا اكتشفنا وجود notification نوقف العرض اليدوي هنا لكي لا يصل الإشعار مرتين.
-  if (payload.notification) {
-    return; 
-  }
+  // منع التكرار: بما أن السيرفر يرسل كائن notification، المتصفح سيعرضه تلقائياً.
+  if (payload.notification) return;
 
-  // الكود القديم يعمل فقط كاحتياطي في حال إرسال بيانات (Data) فقط مستقبلاً
   const title = payload.data?.title || "تنبيه جديد";
   const options = {
     body: payload.data?.body || "يوجد تحديث",
@@ -52,19 +48,15 @@ self.addEventListener('notificationclick', (event) => {
 // ==========================================
 const CACHE_NAME = 'versa-schedule-cache-v2';
 
-// تنصيب السيرفس ووركر فوراً
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// تنظيف الكاش القديم إن وجد
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// اعتراض الطلبات وحفظها للعمل أوفلاين
 self.addEventListener('fetch', (event) => {
-  // نتجاهل طلبات فايربيس والـ API لأننا نريد كاش للواجهة فقط
   if (
     event.request.method !== 'GET' ||
     event.request.url.includes('firebaseio.com') ||

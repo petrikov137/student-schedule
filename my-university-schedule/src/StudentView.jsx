@@ -247,14 +247,15 @@ function StudentView() {
               navigator.serviceWorker.ready.then((registration) => {
                 registration.showNotification(data.title, { 
                   body: data.body,
-                  icon: '/vite.svg', // تأكد أن الأيقونة موجودة في مسارها الصحيح
+                  icon: '/pwa-192x192.png', 
                   dir: 'rtl',
-                  vibrate: [200, 100, 200] // إضافة اهتزاز للهاتف
+                  vibrate: [200, 100, 200],
+                  tag: 'app-update-notification' 
                 });
               });
             } else {
               // احتياطي للكمبيوتر القديم
-              new Notification(data.title, { body: data.body, icon: '/vite.svg', dir: 'rtl' });
+              new Notification(data.title, { body: data.body, icon: '/pwa-192x192.png', dir: 'rtl', tag: 'app-update-notification' });
             }
 
           }

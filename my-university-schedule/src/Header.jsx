@@ -1,5 +1,3 @@
-// 2. ملف: src/Header.jsx
-
 import React, { useState, useEffect, useRef } from 'react';
 import { getToken, onMessage } from 'firebase/messaging';
 import { messaging, database } from './firebase';
@@ -257,13 +255,6 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange, newMateri
             animation: swing-bell 0.8s ease-in-out;
             transform-origin: top center;
           }
-
-          /* 🌟 أنيميشن الـ Badge 🌟 */
-          @keyframes pulseBadge {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.2); }
-            100% { transform: scale(1); }
-          }
         `}
       </style>
 
@@ -393,13 +384,13 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange, newMateri
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--card-bg-locked)'; e.currentTarget.style.color = 'var(--text-pure)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--primary-color)'; }}
           >
-            {/* 🌟 عرض Badge عدد الملازم الجديدة إذا كان التبويب الحالي هو الجدول وكان هناك ملازم جديدة 🌟 */}
-            {activeTab === 'schedule' && newMaterialsCount > 0 && (
+            {/* 🌟 عرض Badge عدد الملازم الجديدة (ثابت وبدون أنيميشن نبض) 🌟 */}
+            {newMaterialsCount > 0 && (
               <div style={{
                 position: 'absolute',
                 top: '-4px',
                 right: '-4px',
-                backgroundColor: '#ef4444', // أحمر للتنبيه
+                backgroundColor: '#ef4444', 
                 color: 'white',
                 fontSize: '10px',
                 fontWeight: 'bold',
@@ -411,8 +402,7 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange, newMateri
                 justifyContent: 'center',
                 padding: '0 4px',
                 zIndex: 10,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                animation: 'pulseBadge 2s infinite' // حركة خفيفة للبادج
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
               }}>
                 {newMaterialsCount > 9 ? '+9' : newMaterialsCount}
               </div>

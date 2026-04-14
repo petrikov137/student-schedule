@@ -249,13 +249,12 @@ function StudentView() {
                   body: data.body,
                   icon: '/pwa-192x192.png', 
                   dir: 'rtl',
-                  vibrate: [200, 100, 200],
-                  tag: 'app-update-notification' 
+                  vibrate: [200, 100, 200]
                 });
               });
             } else {
               // احتياطي للكمبيوتر القديم
-              new Notification(data.title, { body: data.body, icon: '/pwa-192x192.png', dir: 'rtl', tag: 'app-update-notification' });
+              new Notification(data.title, { body: data.body, icon: '/pwa-192x192.png', dir: 'rtl' });
             }
 
           }

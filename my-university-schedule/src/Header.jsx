@@ -87,8 +87,7 @@ const BellIcon = ({ isSubscribed }) => {
 };
 
 
-// 🌟 تعديل هنا لاستقبال newMaterialsCount 🌟
-function Header({ currentTheme, onThemeSelect, activeTab, onTabChange, newMaterialsCount = 0 }) {
+function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
   const [isThemesOpen, setIsThemesOpen] = useState(false);
   const themesContainerRef = useRef(null);
   
@@ -111,28 +110,13 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange, newMateri
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  // 🌟 التقاط الإشعارات والتطبيق مفتوح وتحويلها لإشعار نظام (مدمجة) 🌟
+  // 🌟 التقاط الإشعار والتطبيق مفتوح أمام المستخدم 🌟
   useEffect(() => {
-    if (!messaging) return;
-
     const unsubscribe = onMessage(messaging, (payload) => {
-      console.log('استلمت إشعار والتطبيق مفتوح: ', payload);
-      
-      const title = payload.notification?.title || payload.data?.title || "تنبيه جديد";
-      const body = payload.notification?.body || payload.data?.body || "يوجد تحديث";
-      
-      showAppToast(`🔔 ${title}: ${body}`);
-
-      if (Notification.permission === 'granted') {
-        new Notification(title, {
-          body: body,
-          icon: '/pwa-192x192.png',
-          dir: 'rtl',
-          vibrate: [200, 100, 200]
-        });
+      if (payload.notification) {
+        showAppToast(`🔔 ${payload.notification.title}: ${payload.notification.body}`);
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -152,10 +136,12 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange, newMateri
           localStorage.setItem('fcm_subscribed', 'true');
           
           try {
+            // 🌟 استخدام مسار صريح متوافق مع Vercel 🌟
             const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
   scope: '/'
 });
             
+            // 🌟 تنبيه: يجب وضع مفتاح الـ VAPID الخاص بك هنا 🌟
             const token = await getToken(messaging, { 
               vapidKey: 'BE-ZU08UafjtNFOXQYvEW_OOjmTdo-D7SNCS4UVXEsmueTo-Nt84D6j5yM5srwrxVEu7xnC24LYjR1FdrjW5fuI',
               serviceWorkerRegistration: swRegistration 
@@ -175,6 +161,30 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange, newMateri
       }
     }
   };
+
+  // 🌟 التقاط الإشعارات والتطبيق مفتوح وتحويلها لإشعار نظام 🌟
+  useEffect(() => {
+    if (!messaging) return;
+
+    const unsubscribe = onMessage(messaging, (payload) => {
+      console.log('استلمت إشعار والتطبيق مفتوح: ', payload);
+      
+      const title = payload.notification?.title || payload.data?.title || "تنبيه جديد";
+      const options = {
+        body: payload.notification?.body || payload.data?.body,
+        icon: '/pwa-192x192.png', // تأكد أن الأيقونة موجودة في مجلد public
+        vibrate: [200, 100, 200],
+        dir: 'rtl'
+      };
+
+      // هذا الأمر يجبر المتصفح أو الهاتف على إظهار إشعار رسمي حتى لو كنت داخل الموقع
+      if (Notification.permission === 'granted') {
+        new Notification(title, options);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -378,41 +388,16 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange, newMateri
               background: 'transparent', border: 'none', color: 'var(--primary-color)',
               cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'all 0.3s ease',
               display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-              width: '32px', height: '32px', overflow: 'visible', /* 🌟 تغيير overflow هنا ليظهر البادج 🌟 */
+              width: '32px', height: '32px', overflow: 'hidden',
               WebkitTapHighlightColor: 'transparent'
             }}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--card-bg-locked)'; e.currentTarget.style.color = 'var(--text-pure)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--primary-color)'; }}
           >
-            {/* 🌟 عرض Badge عدد الملازم الجديدة (ثابت وبدون أنيميشن نبض) 🌟 */}
-            {newMaterialsCount > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '-4px',
-                right: '-4px',
-                backgroundColor: '#ef4444', 
-                color: 'white',
-                fontSize: '10px',
-                fontWeight: 'bold',
-                minWidth: '16px',
-                height: '16px',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '0 4px',
-                zIndex: 10,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-              }}>
-                {newMaterialsCount > 9 ? '+9' : newMaterialsCount}
-              </div>
-            )}
-
             <div style={{ 
               position: 'absolute', transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
               opacity: activeTab === 'schedule' ? 1 : 0, transform: activeTab === 'schedule' ? 'scale(1)' : 'scale(0.3)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '100%', height: '100%'
+              display: 'flex', alignItems: 'center', justifyContent: 'center' 
             }}>
               <PaperIcon />
             </div>
@@ -420,8 +405,7 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange, newMateri
             <div style={{ 
               position: 'absolute', transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
               opacity: activeTab === 'materials' ? 1 : 0, transform: activeTab === 'materials' ? 'scale(1)' : 'scale(0.3)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '100%', height: '100%'
+              display: 'flex', alignItems: 'center', justifyContent: 'center' 
             }}>
               <ScheduleIcon />
             </div>

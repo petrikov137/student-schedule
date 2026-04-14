@@ -114,10 +114,6 @@ function StudentView() {
   const adminPressTimer = useRef(null);
   const [isLongPressActive, setIsLongPressActive] = useState(false);
 
-  // 🌟 نظام عداد الملازم الجديد 🌟
-  const [newMatsCountPerSubj, setNewMatsCountPerSubj] = useState({});
-  const [totalNewMats, setTotalNewMats] = useState(0);
-
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('app-theme', theme);
@@ -183,54 +179,12 @@ function StudentView() {
 
   // ----------------------------------------------------------------------------------------------------------
 
-  // 🌟 دالة حساب الملازم الجديدة لكل مادة ومقارنتها بوقت الزيارة 🌟
-  const calculateMaterialsBadges = useCallback((materialsDataObj) => {
-    let counts = {};
-    let total = 0;
-    
-    availableSubjects.forEach(subject => {
-      const subjectMaterialsRaw = materialsDataObj[subject];
-      const subjectMaterials = Array.isArray(subjectMaterialsRaw)
-        ? subjectMaterialsRaw.filter(Boolean)
-        : Object.values(subjectMaterialsRaw || {}).filter(Boolean);
-
-      const lastSeenStr = localStorage.getItem(`last_seen_subj_${subject}`);
-      const lastSeen = lastSeenStr ? parseInt(lastSeenStr, 10) : 0;
-
-      let newCount = 0;
-      subjectMaterials.forEach(mat => {
-        let matTime = 0;
-        if (mat.timestamp) {
-          matTime = mat.timestamp;
-        } else if (mat.date) {
-          const parsed = new Date(mat.date).getTime();
-          if (!isNaN(parsed)) matTime = parsed;
-        }
-        
-        // إذا كان وقت إضافة الملزمة أكبر من آخر وقت فتح فيه الطالب المادة
-        if (matTime > lastSeen) {
-          newCount++;
-        }
-      });
-      
-      counts[subject] = newCount;
-      total += newCount;
-    });
-    
-    setNewMatsCountPerSubj(counts);
-    setTotalNewMats(total);
-  }, [availableSubjects]);
-
   useEffect(() => {
     const cachedData = localStorage.getItem('offline_schedule_data');
     const cachedMaterials = localStorage.getItem('offline_materials_data'); 
     if (cachedData) {
       setAllScheduleData(JSON.parse(cachedData));
-      if (cachedMaterials) {
-        const parsedMats = JSON.parse(cachedMaterials);
-        setMaterialsData(parsedMats);
-        calculateMaterialsBadges(parsedMats);
-      }
+      if (cachedMaterials) setMaterialsData(JSON.parse(cachedMaterials));
       setLoading(false); 
     }
 
@@ -239,16 +193,11 @@ function StudentView() {
       const data = snapshot.val();
       if (data) {
         setAllScheduleData(data);
-        if (data.materials) {
-          setMaterialsData(data.materials); 
-          calculateMaterialsBadges(data.materials);
-          localStorage.setItem('offline_materials_data', JSON.stringify(data.materials));
-        } else {
-          setMaterialsData({});
-          calculateMaterialsBadges({});
-        }
+        setMaterialsData(data.materials || {}); 
+        if (data.materials) setMaterialsData(data.materials); 
         setLoading(false);
         localStorage.setItem('offline_schedule_data', JSON.stringify(data));
+        if (data.materials) localStorage.setItem('offline_materials_data', JSON.stringify(data.materials));
       }
     });
 
@@ -272,7 +221,7 @@ function StudentView() {
 
     calculateCurrentWeek();
 
-  }, [calculateMaterialsBadges]);
+  }, []);
 
 // 🌟 مستمع الإشعارات الفورية للطالب (محدث ليدعم هواتف الأندرويد ويمنع التكرار) 🌟
   useEffect(() => {
@@ -449,20 +398,6 @@ function StudentView() {
     selectedDay === day ? setSelectedDay(null) : setSelectedDay(day); 
   }
 
-  // 🌟 دالة خاصة لفتح مادة الملازم وتصفير عدادها 🌟
-  const handleSubjectClick = (subject, isExpanded) => {
-    if (!isExpanded) {
-      // الطالب قام بفتح المادة الآن
-      localStorage.setItem(`last_seen_subj_${subject}`, Date.now().toString());
-      setNewMatsCountPerSubj(prev => {
-        const currentSubjCount = prev[subject] || 0;
-        setTotalNewMats(total => Math.max(0, total - currentSubjCount));
-        return { ...prev, [subject]: 0 };
-      });
-    }
-    setSelectedSubject(isExpanded ? null : subject);
-  };
-
   const getDayData = (day) => {
     const weekKey = `week_${currentWeek}`;
     return allScheduleData[weekKey] && allScheduleData[weekKey][day] ? allScheduleData[weekKey][day] : null;
@@ -570,8 +505,7 @@ function StudentView() {
         </div>
       ))}
       
-      {/* 🌟 تمرير عدد الملازم الجديدة للهيدر 🌟 */}
-      <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} newMaterialsCount={totalNewMats} />  
+      <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} />  
       
       <h1 style={{ textAlign: 'center', color: 'var(--text-pure)', marginBottom: '20px', marginTop: '10px' }}>
         {activeTab === 'schedule' ? 'الجدول الأسبوعي' : 'الملازم الدراسية'}
@@ -877,7 +811,7 @@ function StudentView() {
               return (
                 <div 
                   key={index} 
-                  onClick={() => handleSubjectClick(subject, isExpanded)} 
+                  onClick={() => setSelectedSubject(isExpanded ? null : subject)} 
                   className={`day-card ${isExpanded ? 'expanded' : ''} schedule-day-box`}
                   style={{
                     cursor: 'pointer',
@@ -886,22 +820,7 @@ function StudentView() {
                   }}
                 >
                   <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px' }}>
-                    <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-pure)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {subject}
-                      {/* 🌟 عرض Badge فرعي لعدد الملازم الجديدة داخل هذه المادة فقط 🌟 */}
-                      {newMatsCountPerSubj[subject] > 0 && (
-                        <span style={{
-                          backgroundColor: '#ef4444',
-                          color: 'white',
-                          fontSize: '11px',
-                          padding: '2px 6px',
-                          borderRadius: '10px',
-                          fontWeight: 'bold'
-                        }}>
-                          {newMatsCountPerSubj[subject]} جديد
-                        </span>
-                      )}
-                    </h3>
+                    <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-pure)' }}>{subject}</h3>
                     <span style={{ fontSize: '13px', color: isExpanded ? 'var(--primary-color)' : 'var(--text-muted)', backgroundColor: isExpanded ? 'rgba(0,0,0,0.15)' : 'var(--card-bg-locked)', padding: '4px 10px', borderRadius: '8px', fontWeight: 'bold' }}>
                       {hasMaterials ? `${subjectMaterials.length} ملفات` : 'لا يوجد'}
                     </span>

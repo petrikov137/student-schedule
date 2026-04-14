@@ -22,8 +22,6 @@ messaging.onBackgroundMessage((payload) => {
     badge: '/pwa-192x192.png',
     dir: 'rtl',
     vibrate: [200, 100, 200, 100, 200],
-    tag: 'app-update-notification',
-    renotify: true,
     data: { url: payload.data?.url || '/' }
   };
   

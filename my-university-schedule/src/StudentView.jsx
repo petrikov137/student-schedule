@@ -1,3 +1,5 @@
+// 1. ملف: src/StudentView.jsx
+
 import Header from './Header';
 import { useState, useEffect, useCallback, useRef } from 'react' 
 import { database } from './firebase'
@@ -114,6 +116,9 @@ function StudentView() {
   const adminPressTimer = useRef(null);
   const [isLongPressActive, setIsLongPressActive] = useState(false);
 
+  // 🌟 حساب عدد الملازم الجديدة 🌟
+  const [newMaterialsCount, setNewMaterialsCount] = useState(0);
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('app-theme', theme);
@@ -184,7 +189,11 @@ function StudentView() {
     const cachedMaterials = localStorage.getItem('offline_materials_data'); 
     if (cachedData) {
       setAllScheduleData(JSON.parse(cachedData));
-      if (cachedMaterials) setMaterialsData(JSON.parse(cachedMaterials));
+      if (cachedMaterials) {
+        const parsedMaterials = JSON.parse(cachedMaterials);
+        setMaterialsData(parsedMaterials);
+        calculateNewMaterials(parsedMaterials);
+      }
       setLoading(false); 
     }
 
@@ -193,11 +202,16 @@ function StudentView() {
       const data = snapshot.val();
       if (data) {
         setAllScheduleData(data);
-        setMaterialsData(data.materials || {}); 
-        if (data.materials) setMaterialsData(data.materials); 
+        if (data.materials) {
+          setMaterialsData(data.materials); 
+          calculateNewMaterials(data.materials);
+          localStorage.setItem('offline_materials_data', JSON.stringify(data.materials));
+        } else {
+          setMaterialsData({});
+          calculateNewMaterials({});
+        }
         setLoading(false);
         localStorage.setItem('offline_schedule_data', JSON.stringify(data));
-        if (data.materials) localStorage.setItem('offline_materials_data', JSON.stringify(data.materials));
       }
     });
 
@@ -222,6 +236,49 @@ function StudentView() {
     calculateCurrentWeek();
 
   }, []);
+
+  // 🌟 دالة حساب الملازم الجديدة 🌟
+  const calculateNewMaterials = useCallback((materials) => {
+    const lastMaterialsVisit = localStorage.getItem('last_materials_visit');
+    let count = 0;
+
+    if (!lastMaterialsVisit) {
+      // إذا لم يزر قسم الملازم أبداً، احسب جميع الملازم كجديدة
+      Object.values(materials).forEach(subjectMats => {
+        const matArray = Array.isArray(subjectMats) ? subjectMats.filter(Boolean) : Object.values(subjectMats || {}).filter(Boolean);
+        count += matArray.length;
+      });
+    } else {
+      const lastVisitTime = parseInt(lastMaterialsVisit, 10);
+      Object.values(materials).forEach(subjectMats => {
+         const matArray = Array.isArray(subjectMats) ? subjectMats.filter(Boolean) : Object.values(subjectMats || {}).filter(Boolean);
+         matArray.forEach(mat => {
+            // التحقق مما إذا كان للملزمة timestamp، وإذا كانت مضافة بعد آخر زيارة
+            if (mat.timestamp && mat.timestamp > lastVisitTime) {
+                count++;
+            } else if (mat.date) {
+                // محاولة استخدام حقل date إذا لم يتوفر timestamp (تحويل التاريخ إلى وقت)
+                // قد لا يكون دقيقاً جداً يعتمد على صيغة التاريخ المحفوظة
+                const matTime = new Date(mat.date).getTime();
+                if(!isNaN(matTime) && matTime > lastVisitTime) {
+                    count++;
+                }
+            }
+         });
+      });
+    }
+    setNewMaterialsCount(count);
+  }, []);
+
+  // 🌟 تحديث "آخر زيارة للملازم" عند تغيير التبويب 🌟
+  const handleTabChange = useCallback((newTab) => {
+    setActiveTab(newTab);
+    if (newTab === 'materials') {
+      localStorage.setItem('last_materials_visit', Date.now().toString());
+      setNewMaterialsCount(0); // تصفير العداد عند الدخول
+    }
+  }, []);
+
 
 // 🌟 مستمع الإشعارات الفورية للطالب (محدث ليدعم هواتف الأندرويد ويمنع التكرار) 🌟
   useEffect(() => {
@@ -505,7 +562,8 @@ function StudentView() {
         </div>
       ))}
       
-      <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} />  
+      {/* 🌟 تمرير عدد الملازم الجديدة للهيدر 🌟 */}
+      <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={handleTabChange} newMaterialsCount={newMaterialsCount} />  
       
       <h1 style={{ textAlign: 'center', color: 'var(--text-pure)', marginBottom: '20px', marginTop: '10px' }}>
         {activeTab === 'schedule' ? 'الجدول الأسبوعي' : 'الملازم الدراسية'}

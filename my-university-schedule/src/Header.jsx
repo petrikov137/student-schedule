@@ -1,5 +1,3 @@
-// 4. ملف: src/Header.jsx
-
 import React, { useState, useEffect, useRef } from 'react';
 import { getToken, onMessage } from 'firebase/messaging';
 import { messaging, database } from './firebase';
@@ -112,28 +110,13 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  // 🌟 التقاط الإشعارات والتطبيق مفتوح وتحويلها لإشعار نظام (مدمجة) 🌟
+  // 🌟 التقاط الإشعار والتطبيق مفتوح أمام المستخدم 🌟
   useEffect(() => {
-    if (!messaging) return;
-
     const unsubscribe = onMessage(messaging, (payload) => {
-      console.log('استلمت إشعار والتطبيق مفتوح: ', payload);
-      
-      const title = payload.notification?.title || payload.data?.title || "تنبيه جديد";
-      const body = payload.notification?.body || payload.data?.body || "يوجد تحديث";
-      
-      showAppToast(`🔔 ${title}: ${body}`);
-
-      if (Notification.permission === 'granted') {
-        new Notification(title, {
-          body: body,
-          icon: '/pwa-192x192.png',
-          dir: 'rtl',
-          vibrate: [200, 100, 200]
-        });
+      if (payload.notification) {
+        showAppToast(`🔔 ${payload.notification.title}: ${payload.notification.body}`);
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -153,10 +136,12 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
           localStorage.setItem('fcm_subscribed', 'true');
           
           try {
+            // 🌟 استخدام مسار صريح متوافق مع Vercel 🌟
             const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
   scope: '/'
 });
             
+            // 🌟 تنبيه: يجب وضع مفتاح الـ VAPID الخاص بك هنا 🌟
             const token = await getToken(messaging, { 
               vapidKey: 'BE-ZU08UafjtNFOXQYvEW_OOjmTdo-D7SNCS4UVXEsmueTo-Nt84D6j5yM5srwrxVEu7xnC24LYjR1FdrjW5fuI',
               serviceWorkerRegistration: swRegistration 
@@ -176,6 +161,30 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
       }
     }
   };
+
+  // 🌟 التقاط الإشعارات والتطبيق مفتوح وتحويلها لإشعار نظام 🌟
+  useEffect(() => {
+    if (!messaging) return;
+
+    const unsubscribe = onMessage(messaging, (payload) => {
+      console.log('استلمت إشعار والتطبيق مفتوح: ', payload);
+      
+      const title = payload.notification?.title || payload.data?.title || "تنبيه جديد";
+      const options = {
+        body: payload.notification?.body || payload.data?.body,
+        icon: '/pwa-192x192.png', // تأكد أن الأيقونة موجودة في مجلد public
+        vibrate: [200, 100, 200],
+        dir: 'rtl'
+      };
+
+      // هذا الأمر يجبر المتصفح أو الهاتف على إظهار إشعار رسمي حتى لو كنت داخل الموقع
+      if (Notification.permission === 'granted') {
+        new Notification(title, options);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event) {

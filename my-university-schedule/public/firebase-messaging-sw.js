@@ -15,18 +15,18 @@ const messaging = firebase.messaging();
 // 1. قسم الإشعارات (Notifications)
 // ==========================================
 messaging.onBackgroundMessage((payload) => {
-  // منع التكرار: بما أن السيرفر يرسل كائن notification، المتصفح سيعرضه تلقائياً.
-  if (payload.notification) return;
-
   const title = payload.data?.title || "تنبيه جديد";
   const options = {
     body: payload.data?.body || "يوجد تحديث",
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
     dir: 'rtl',
-    vibrate: [200, 100, 200],
+    vibrate: [200, 100, 200, 100, 200],
+    tag: 'app-update-notification',
+    renotify: true,
     data: { url: payload.data?.url || '/' }
   };
+  
   return self.registration.showNotification(title, options);
 });
 

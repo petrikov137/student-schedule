@@ -19,10 +19,6 @@ export default async function handler(req, res) {
 
     const message = {
       tokens: tokens,
-      notification: {
-        title: title || "تنبيه جديد",
-        body: body || "تحديث في الجدول"
-      },
       data: {
         title: title || "تنبيه جديد",
         body: body || "تحديث في الجدول",
@@ -37,9 +33,6 @@ export default async function handler(req, res) {
         headers: {
           Urgency: "high",
           TTL: "86400"
-        },
-        fcm_options: {
-          link: "/"
         }
       }
     };

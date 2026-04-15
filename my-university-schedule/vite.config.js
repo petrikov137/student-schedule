@@ -14,11 +14,11 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}']
       },
       manifest: {
-        name: 'الجدول الجامعي',
+        name: 'Versa Schedule',
         short_name: 'Versa',
-        description: 'جدول المحاضرات الجامعي الذكي',
-        theme_color: '#1a1a1a', // لون شريط الهاتف من الأعلى
-        background_color: '#1a1a1a', // لون شاشة التحميل
+        description: 'جدول المحاضرات الجامعي',
+        theme_color: '#000000', // لون شريط الهاتف من الأعلى
+        background_color: '#00258a', // لون شاشة التحميل
         display: 'standalone', // جعله يفتح كتطبيق مستقل بدون شريط المتصفح
         start_url: '/', // الرابط الذي سيفتح عليه التطبيق
 
@@ -44,7 +44,7 @@ export default defineConfig({
   ],
   base: '/',
   
-  // 🌟 هذا هو القسم الجديد للسماح بروابط النفق (localtunnel) 🌟
+  // 🌟(localtunnel) 🌟
   server: {
     allowedHosts: [
       '.loca.lt' // يسمح لأي رابط ينتهي بـ loca.lt لتجنب تعديله في كل مرة يتغير فيها الرابط

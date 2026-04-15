@@ -114,13 +114,6 @@ function StudentView() {
   const adminPressTimer = useRef(null);
   const [isLongPressActive, setIsLongPressActive] = useState(false);
 
-  // 🌟 نظام عداد الملازم الجديد 🌟
-  const [newMatsCountPerSubj, setNewMatsCountPerSubj] = useState({});
-  const [totalNewMats, setTotalNewMats] = useState(0);
-
-  // 🌟 إضافة State لثبات شاشة التحميل الحيوية 🌟
-  const [showAnimation, setShowAnimation] = useState(true);
-
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('app-theme', theme);
@@ -186,57 +179,13 @@ function StudentView() {
 
   // ----------------------------------------------------------------------------------------------------------
 
-  // 🌟 دالة حساب الملازم الجديدة لكل مادة ومقارنتها بوقت الزيارة 🌟
-  const calculateMaterialsBadges = useCallback((materialsDataObj) => {
-    let counts = {};
-    let total = 0;
-    
-    availableSubjects.forEach(subject => {
-      const subjectMaterialsRaw = materialsDataObj[subject];
-      const subjectMaterials = Array.isArray(subjectMaterialsRaw)
-        ? subjectMaterialsRaw.filter(Boolean)
-        : Object.values(subjectMaterialsRaw || {}).filter(Boolean);
-
-      const lastSeenStr = localStorage.getItem(`last_seen_subj_${subject}`);
-      const lastSeen = lastSeenStr ? parseInt(lastSeenStr, 10) : 0;
-
-      let newCount = 0;
-      subjectMaterials.forEach(mat => {
-        let matTime = 0;
-        if (mat.timestamp) {
-          matTime = mat.timestamp;
-        } else if (mat.date) {
-          const parsed = new Date(mat.date).getTime();
-          if (!isNaN(parsed)) matTime = parsed;
-        }
-        
-        // إذا كان وقت إضافة الملزمة أكبر من آخر وقت فتح فيه الطالب المادة
-        if (matTime > lastSeen) {
-          newCount++;
-        }
-      });
-      
-      counts[subject] = newCount;
-      total += newCount;
-    });
-    
-    setNewMatsCountPerSubj(counts);
-    setTotalNewMats(total);
-  }, [availableSubjects]);
-
   useEffect(() => {
     const cachedData = localStorage.getItem('offline_schedule_data');
     const cachedMaterials = localStorage.getItem('offline_materials_data'); 
     if (cachedData) {
       setAllScheduleData(JSON.parse(cachedData));
-      if (cachedMaterials) {
-        const parsedMats = JSON.parse(cachedMaterials);
-        setMaterialsData(parsedMats);
-        calculateMaterialsBadges(parsedMats);
-      }
+      if (cachedMaterials) setMaterialsData(JSON.parse(cachedMaterials));
       setLoading(false); 
-      // تأخير بسيط لشاشة التحميل حتى وإن كان هناك Cache لضمان السلاسة البصرية
-      setTimeout(() => setShowAnimation(false), 1200);
     }
 
     const dataRef = ref(database, '/');
@@ -244,22 +193,11 @@ function StudentView() {
       const data = snapshot.val();
       if (data) {
         setAllScheduleData(data);
-        if (data.materials) {
-          setMaterialsData(data.materials); 
-          calculateMaterialsBadges(data.materials);
-          localStorage.setItem('offline_materials_data', JSON.stringify(data.materials));
-        } else {
-          setMaterialsData({});
-          calculateMaterialsBadges({});
-        }
-        
-        // 🌟 تأخير إغلاق شاشة التحميل الحيوية لـ 1.2 ثانية 🌟
-        setTimeout(() => {
-          setLoading(false);
-          setShowAnimation(false);
-        }, 1200);
-
+        setMaterialsData(data.materials || {}); 
+        if (data.materials) setMaterialsData(data.materials); 
+        setLoading(false);
         localStorage.setItem('offline_schedule_data', JSON.stringify(data));
+        if (data.materials) localStorage.setItem('offline_materials_data', JSON.stringify(data.materials));
       }
     });
 
@@ -283,7 +221,7 @@ function StudentView() {
 
     calculateCurrentWeek();
 
-  }, [calculateMaterialsBadges]);
+  }, []);
 
 // 🌟 مستمع الإشعارات الفورية للطالب (محدث ليدعم هواتف الأندرويد ويمنع التكرار) 🌟
   useEffect(() => {
@@ -460,20 +398,6 @@ function StudentView() {
     selectedDay === day ? setSelectedDay(null) : setSelectedDay(day); 
   }
 
-  // 🌟 دالة خاصة لفتح مادة الملازم وتصفير عدادها 🌟
-  const handleSubjectClick = (subject, isExpanded) => {
-    if (!isExpanded) {
-      // الطالب قام بفتح المادة الآن
-      localStorage.setItem(`last_seen_subj_${subject}`, Date.now().toString());
-      setNewMatsCountPerSubj(prev => {
-        const currentSubjCount = prev[subject] || 0;
-        setTotalNewMats(total => Math.max(0, total - currentSubjCount));
-        return { ...prev, [subject]: 0 };
-      });
-    }
-    setSelectedSubject(isExpanded ? null : subject);
-  };
-
   const getDayData = (day) => {
     const weekKey = `week_${currentWeek}`;
     return allScheduleData[weekKey] && allScheduleData[weekKey][day] ? allScheduleData[weekKey][day] : null;
@@ -495,92 +419,99 @@ function StudentView() {
     return url;
   };
 
+  // 🌟 شاشة التحميل الاحترافية (9 مستطيلات تشكل حرف V مع أنيميشن الطاقة) 🌟
+  if (loading) {
+    // إحداثيات دقيقة لتكوين حرف V هندسياً يطابق الشعار (ميلان موحد لليمين)
+    const vBlocks = [
+      // الضلع الأيسر (5 مستطيلات تنزل لأسفل ويمين)
+      { id: 1, top: 0, left: 0, delay: '0s' },
+      { id: 2, top: 18, left: 14, delay: '0.15s' },
+      { id: 3, top: 36, left: 28, delay: '0.3s' },
+      { id: 4, top: 54, left: 42, delay: '0.45s' },
+      
+      // مستطيل القاعدة المشترك 
+      { id: 5, top: 72, left: 56, delay: '0.6s' },
+      
+      // الضلع الأيمن (4 مستطيلات تصعد لأعلى ويمين بمسافة أضيق)
+      { id: 6, top: 54, left: 74, delay: '0.75s' },
+      { id: 7, top: 36, left: 92, delay: '0.9s' },
+      { id: 8, top: 18, left: 110, delay: '1.05s' },
+      { id: 9, top: 0, left: 128, delay: '1.2s' },
+    ];
+
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        backgroundColor: '#141414', // خلفية داكنة فخمة
+        overflow: 'hidden',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        zIndex: 9999
+      }}>
+        {/* حاوية حرف V */}
+        <div style={{
+          position: 'relative',
+          width: '168px', // العرض الكلي لاستيعاب آخر مستطيل يميناً
+          height: '86px',  // الارتفاع الكلي
+          transform: 'scale(1.1) translateX(-10px)' // ضبط الحجم والموقع المركزي
+        }}>
+          {vBlocks.map((b) => (
+            <div key={b.id} style={{
+              position: 'absolute',
+              top: `${b.top}px`,
+              left: `${b.left}px`
+            }}>
+              <div className="v-logo-block" style={{ animationDelay: b.delay }}></div>
+            </div>
+          ))}
+        </div>
+
+        <style>
+          {`
+            .v-logo-block {
+              width: 40px; /* عرض المستطيل */
+              height: 14px; /* ارتفاع المستطيل */
+              background-color: var(--primary-color, #0094f7);
+              border-radius: 3px;
+              transform: skewX(-20deg); /* درجة الميلان المتطابقة تماماً مع الشعار */
+              box-shadow: 0 0 10px var(--primary-color, #0094f7);
+              animation: v-wave-glow 2s ease-in-out infinite; /* أنيميشن أكثر وضوحاً وحيوية */
+            }
+
+            @keyframes v-wave-glow {
+              0%, 100% {
+                transform: skewX(-20deg) translateY(0) scale(1);
+                filter: brightness(1);
+                opacity: 0.6;
+              }
+              50% {
+                /* حركة قوية وواضحة (انزياح، تكبير، توهج ساطع) */
+                transform: skewX(-20deg) translateY(-8px) scale(1.2);
+                filter: brightness(1.8);
+                box-shadow: 0 0 30px var(--primary-color, #0094f7);
+                opacity: 1;
+              }
+            }
+
+            body {
+              transition: background-color 0.5s ease;
+            }
+          `}
+        </style>
+      </div>
+    );
+  }
+
   const getStatusColor = (isExamDay) => {
     if (isExamDay) return '#ff0000d1'; 
     if (theme === 'glass' || theme === 'matrix') return '#15ff00c7'; 
     return 'var(--primary-color)'; 
   };
-
-// 🌟 شاشة التحميل الحيوية بدلاً من النص الجامد 🌟
-if (loading || showAnimation) {
-  return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100vh',
-      backgroundColor: 'var(--bg-color)',
-      gap: '20px'
-    }}>
-      {/* الشعار مع أنيميشن نبض وتوهج */}
-      <div style={{
-        position: 'relative',
-        width: '100px',
-        height: '100px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <div className="loader-ring" style={{
-          position: 'absolute',
-          width: '100%',
-          height: '100%',
-          borderRadius: '50%',
-          border: '2px solid var(--primary-color)',
-          opacity: '0.3',
-          animation: 'ring-pulse 2s infinite ease-out'
-        }}></div>
-        <img 
-          src="/pwa-192x192.png" 
-          style={{ 
-            width: '80px', 
-            height: '80px', 
-            zIndex: 2,
-            animation: 'logo-float 2s infinite ease-in-out' 
-          }} 
-          alt="Versa Logo" 
-        />
-      </div>
-
-      {/* شريط تحميل ناعم */}
-      <div style={{
-        width: '140px',
-        height: '4px',
-        backgroundColor: 'var(--card-bg-locked)',
-        borderRadius: '10px',
-        overflow: 'hidden',
-        position: 'relative'
-      }}>
-        <div style={{
-          position: 'absolute',
-          width: '40%',
-          height: '100%',
-          backgroundColor: 'var(--primary-color)',
-          borderRadius: '10px',
-          animation: 'loading-slide 1.5s infinite ease-in-out'
-        }}></div>
-      </div>
-
-      <style>
-        {`
-          @keyframes ring-pulse {
-            0% { transform: scale(0.8); opacity: 0.8; }
-            100% { transform: scale(1.5); opacity: 0; }
-          }
-          @keyframes logo-float {
-            0%, 100% { transform: translateY(0); filter: drop-shadow(0 0 5px var(--primary-color)); }
-            50% { transform: translateY(-10px); filter: drop-shadow(0 0 15px var(--primary-color)); }
-          }
-          @keyframes loading-slide {
-            0% { left: -40%; }
-            100% { left: 100%; }
-          }
-        `}
-      </style>
-    </div>
-  );
-}
 
   return (
     <div className="main-container" style={{ width: '100%', maxWidth: '600px', margin: '0 auto', padding: '0 0px' }}>
@@ -660,8 +591,7 @@ if (loading || showAnimation) {
         </div>
       ))}
       
-      {/* 🌟 تمرير عدد الملازم الجديدة للهيدر 🌟 */}
-      <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} newMaterialsCount={totalNewMats} />  
+      <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} />  
       
       <h1 style={{ textAlign: 'center', color: 'var(--text-pure)', marginBottom: '20px', marginTop: '10px' }}>
         {activeTab === 'schedule' ? 'الجدول الأسبوعي' : 'الملازم الدراسية'}
@@ -967,7 +897,7 @@ if (loading || showAnimation) {
               return (
                 <div 
                   key={index} 
-                  onClick={() => handleSubjectClick(subject, isExpanded)} 
+                  onClick={() => setSelectedSubject(isExpanded ? null : subject)} 
                   className={`day-card ${isExpanded ? 'expanded' : ''} schedule-day-box`}
                   style={{
                     cursor: 'pointer',
@@ -976,22 +906,7 @@ if (loading || showAnimation) {
                   }}
                 >
                   <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px' }}>
-                    <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-pure)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {subject}
-                      {/* 🌟 عرض Badge فرعي لعدد الملازم الجديدة داخل هذه المادة فقط 🌟 */}
-                      {newMatsCountPerSubj[subject] > 0 && (
-                        <span style={{
-                          backgroundColor: '#ef4444',
-                          color: 'white',
-                          fontSize: '11px',
-                          padding: '2px 6px',
-                          borderRadius: '10px',
-                          fontWeight: 'bold'
-                        }}>
-                          {newMatsCountPerSubj[subject]} جديد
-                        </span>
-                      )}
-                    </h3>
+                    <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-pure)' }}>{subject}</h3>
                     <span style={{ fontSize: '13px', color: isExpanded ? 'var(--primary-color)' : 'var(--text-muted)', backgroundColor: isExpanded ? 'rgba(0,0,0,0.15)' : 'var(--card-bg-locked)', padding: '4px 10px', borderRadius: '8px', fontWeight: 'bold' }}>
                       {hasMaterials ? `${subjectMaterials.length} ملفات` : 'لا يوجد'}
                     </span>

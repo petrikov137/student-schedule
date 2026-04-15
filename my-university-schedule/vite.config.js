@@ -17,8 +17,8 @@ export default defineConfig({
         name: 'Versa Schedule',
         short_name: 'Versa',
         description: 'جدول المحاضرات الجامعي',
-        theme_color: '#0f2027', // لون شريط الهاتف من الأعلى
-        background_color: '#0f2027', // لون شاشة التحميل
+        theme_color: '#000000', // لون شريط الهاتف من الأعلى
+        background_color: '#000000', // لون شاشة التحميل
         display: 'standalone', // جعله يفتح كتطبيق مستقل بدون شريط المتصفح
         start_url: '/', // الرابط الذي سيفتح عليه التطبيق
 

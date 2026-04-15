@@ -419,90 +419,30 @@ function StudentView() {
     return url;
   };
 
-  // 🌟 شاشة التحميل الاحترافية (9 مستطيلات تشكل حرف V مع أنيميشن الطاقة) 🌟
-  if (loading) {
-    // إحداثيات دقيقة لتكوين حرف V هندسياً يطابق الشعار (ميلان موحد لليمين)
-   const vBlocks = [
-      // الضلع الأيسر (من الأعلى للأسفل)
-      { id: 1, top: 0, left: 0, delay: '0s' },
-      { id: 2, top: 22, left: 11, delay: '0.1s' }, // تم تغيير top إلى 22
-      { id: 3, top: 44, left: 22, delay: '0.2s' }, // تم تغيير top إلى 44
-      { id: 4, top: 66, left: 33, delay: '0.3s' }, // تم تغيير top إلى 66
-      
-      // القاعدة (الوسط)
-      { id: 5, top: 88, left: 44, delay: '0.4s' }, // تم تغيير top إلى 88
-      
-      // الضلع الأيمن (من الأسفل للأعلى)
-      { id: 6, top: 66, left: 55, delay: '0.5s' }, // تم تغيير top إلى 66
-      { id: 7, top: 44, left: 66, delay: '0.6s' }, // تم تغيير top إلى 44
-      { id: 8, top: 22, left: 77, delay: '0.7s' }, // تم تغيير top إلى 22
+  // 🌟 شاشة التحميل الاحترافية (9 مستطيلات تشكل حرف V) 🌟
+  if (loading ) {
+    const vBlocks = [
+      { id: 1, top: 0, left: 0, delay: '0s' }, { id: 2, top: 18, left: 11, delay: '0.1s' },
+      { id: 3, top: 36, left: 22, delay: '0.2s' }, { id: 4, top: 54, left: 33, delay: '0.3s' },
+      { id: 5, top: 72, left: 44, delay: '0.4s' }, { id: 6, top: 54, left: 55, delay: '0.5s' },
+      { id: 7, top: 36, left: 66, delay: '0.6s' }, { id: 8, top: 18, left: 77, delay: '0.7s' },
       { id: 9, top: 0, left: 88, delay: '0.8s' },
     ];
-
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        backgroundColor: '#141414', // خلفية داكنة فخمة
-        overflow: 'hidden',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100%',
-        zIndex: 9999
-      }}>
-        {/* حاوية حرف V */}
-        <div style={{
-          position: 'relative',
-          width: '168px', // العرض الكلي لاستيعاب آخر مستطيل يميناً
-          height: '102px',  // الارتفاع الكلي من 76
-          transform: 'scale(1.1) translateX(-10px)' // ضبط الحجم والموقع المركزي
-        }}>
-          {vBlocks.map((b) => (
-            <div key={b.id} style={{
-              position: 'absolute',
-              top: `${b.top}px`,
-              left: `${b.left}px`
-            }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#000000', overflow: 'hidden', position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 9999 }}>
+        {/* 🌟 التعديل هنا: التوسيط المطلق (Absolute Centering) 🌟 */}
+        <div style={{ position: 'absolute', top: '50%', left: '50%', width: '124px', height: '86px', transform: 'translate(-50%, -50%) scale(1.2)' }}>
+          {vBlocks.map(b => (
+            <div key={b.id} style={{ position: 'absolute', top: `${b.top}px`, left: `${b.left}px` }}>
               <div className="v-logo-block" style={{ animationDelay: b.delay }}></div>
             </div>
           ))}
         </div>
-
-        <style>
-          {`
-            .v-logo-block {
-              width: 40px; /* عرض المستطيل */
-              height: 14px; /* ارتفاع المستطيل */
-              background-color: var(--primary-color, #0094f7);
-              border-radius: 3px;
-              transform: skewX(-20deg); /* درجة الميلان المتطابقة تماماً مع الشعار */
-              box-shadow: 0 0 10px var(--primary-color, #0094f7);
-              animation: v-wave-glow 2s ease-in-out infinite; /* أنيميشن أكثر وضوحاً وحيوية */
-            }
-
-            @keyframes v-wave-glow {
-              0%, 100% {
-                transform: skewX(-20deg) translateY(0) scale(1);
-                filter: brightness(1);
-                opacity: 0.6;
-              }
-              50% {
-                /* حركة قوية وواضحة (انزياح، تكبير، توهج ساطع) */
-                transform: skewX(-20deg) translateY(-8px) scale(1.2);
-                filter: brightness(1.8);
-                box-shadow: 0 0 30px var(--primary-color, #0094f7);
-                opacity: 1;
-              }
-            }
-
-            body {
-              transition: background-color 0.5s ease;
-            }
-          `}
-        </style>
+        <style>{`
+          .v-logo-block { width: 36px; height: 14px; background-color: var(--primary-color, #0094f7); border-radius: 3px; transform: skewX(-24deg); box-shadow: 0 0 10px var(--primary-color, #0094f7); animation: v-energy-flow 1.5s ease-in-out infinite; }
+          @keyframes v-energy-flow { 0%, 100% { transform: skewX(-24deg) translateY(0) scale(1); filter: brightness(1); opacity: 0.7; } 50% { transform: skewX(-24deg) translateY(-6px) scale(1.15); filter: brightness(1.6); box-shadow: 0 0 25px var(--primary-color, #0094f7); opacity: 1; } }
+          body { transition: background-color 0.5s ease; }
+        `}</style>
       </div>
     );
   }

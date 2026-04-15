@@ -419,8 +419,86 @@ function StudentView() {
     return url;
   };
 
-  if (loading) return <div style={{ color: 'var(--text-pure)', marginTop: '310px' }}>جارِ جلب الجدول..</div>;
+// 🌟 شاشة التحميل 🌟 
+if (loading) {
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100vh',
+      backgroundColor: 'var(--bg-color)',
+      gap: '20px'
+    }}>
+      {/* الشعار مع أنيميشن نبض وتوهج */}
+      <div style={{
+        position: 'relative',
+        width: '100px',
+        height: '100px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div className="loader-ring" style={{
+          position: 'absolute',
+          width: '100%',
+          height: '100%',
+          borderRadius: '50%',
+          border: '2px solid var(--primary-color)',
+          opacity: '0.3',
+          animation: 'ring-pulse 2s infinite ease-out'
+        }}></div>
+        <img 
+          src="/pwa-192x192.png" 
+          style={{ 
+            width: '80px', 
+            height: '80px', 
+            zIndex: 2,
+            animation: 'logo-float 2s infinite ease-in-out' 
+          }} 
+          alt="Versa Logo" 
+        />
+      </div>
 
+      {/* شريط تحميل ناعم */}
+      <div style={{
+        width: '140px',
+        height: '4px',
+        backgroundColor: 'var(--card-bg-locked)',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        position: 'relative'
+      }}>
+        <div style={{
+          position: 'absolute',
+          width: '40%',
+          height: '100%',
+          backgroundColor: 'var(--primary-color)',
+          borderRadius: '10px',
+          animation: 'loading-slide 1.5s infinite ease-in-out'
+        }}></div>
+      </div>
+
+      <style>
+        {`
+          @keyframes ring-pulse {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(1.5); opacity: 0; }
+          }
+          @keyframes logo-float {
+            0%, 100% { transform: translateY(0); filter: drop-shadow(0 0 5px var(--primary-color)); }
+            50% { transform: translateY(-10px); filter: drop-shadow(0 0 15px var(--primary-color)); }
+          }
+          @keyframes loading-slide {
+            0% { left: -40%; }
+            100% { left: 100%; }
+          }
+        `}
+      </style>
+    </div>
+  );
+}
   const getStatusColor = (isExamDay) => {
     if (isExamDay) return '#ff0000d1'; 
     if (theme === 'glass' || theme === 'matrix') return '#15ff00c7'; 

@@ -21,6 +21,24 @@ export default defineConfig({
         background_color: '#1a1a1a', // لون شاشة التحميل
         display: 'standalone', // جعله يفتح كتطبيق مستقل بدون شريط المتصفح
         start_url: '/', // الرابط الذي سيفتح عليه التطبيق
+
+
+        // ... 
+        icons: [
+          {
+            src: '/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable' // مهم جداً لكي يأخذ شكل الأيقونة الدائري أو المربع حسب نوع الهاتف
+          }
+        ]
+      
       }
     })
   ],

@@ -103,7 +103,7 @@ function StudentView() {
   const [bubbleBursts, setBubbleBursts] = useState([]);
 
   // --- نظام الثيمات ---
-  const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'dark');
+  const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'ocean'); //////
   const [showThemes, setShowThemes] = useState(false);
   const [hoveredTheme, setHoveredTheme] = useState(null);
   const [pressedTheme, setPressedTheme] = useState(null);
@@ -422,21 +422,21 @@ function StudentView() {
   // 🌟 شاشة التحميل الاحترافية (9 مستطيلات تشكل حرف V مع أنيميشن الطاقة) 🌟
   if (loading) {
     // إحداثيات دقيقة لتكوين حرف V هندسياً يطابق الشعار (ميلان موحد لليمين)
-    const vBlocks = [
-      // الضلع الأيسر (5 مستطيلات تنزل لأسفل ويمين)
+   const vBlocks = [
+      // الضلع الأيسر (من الأعلى للأسفل)
       { id: 1, top: 0, left: 0, delay: '0s' },
-      { id: 2, top: 18, left: 14, delay: '0.15s' },
-      { id: 3, top: 36, left: 28, delay: '0.3s' },
-      { id: 4, top: 54, left: 42, delay: '0.45s' },
+      { id: 2, top: 22, left: 11, delay: '0.1s' }, // تم تغيير top إلى 22
+      { id: 3, top: 44, left: 22, delay: '0.2s' }, // تم تغيير top إلى 44
+      { id: 4, top: 66, left: 33, delay: '0.3s' }, // تم تغيير top إلى 66
       
-      // مستطيل القاعدة المشترك 
-      { id: 5, top: 72, left: 56, delay: '0.6s' },
+      // القاعدة (الوسط)
+      { id: 5, top: 88, left: 44, delay: '0.4s' }, // تم تغيير top إلى 88
       
-      // الضلع الأيمن (4 مستطيلات تصعد لأعلى ويمين بمسافة أضيق)
-      { id: 6, top: 54, left: 74, delay: '0.75s' },
-      { id: 7, top: 36, left: 92, delay: '0.9s' },
-      { id: 8, top: 18, left: 110, delay: '1.05s' },
-      { id: 9, top: 0, left: 128, delay: '1.2s' },
+      // الضلع الأيمن (من الأسفل للأعلى)
+      { id: 6, top: 66, left: 55, delay: '0.5s' }, // تم تغيير top إلى 66
+      { id: 7, top: 44, left: 66, delay: '0.6s' }, // تم تغيير top إلى 44
+      { id: 8, top: 22, left: 77, delay: '0.7s' }, // تم تغيير top إلى 22
+      { id: 9, top: 0, left: 88, delay: '0.8s' },
     ];
 
     return (
@@ -457,7 +457,7 @@ function StudentView() {
         <div style={{
           position: 'relative',
           width: '168px', // العرض الكلي لاستيعاب آخر مستطيل يميناً
-          height: '86px',  // الارتفاع الكلي
+          height: '102px',  // الارتفاع الكلي من 76
           transform: 'scale(1.1) translateX(-10px)' // ضبط الحجم والموقع المركزي
         }}>
           {vBlocks.map((b) => (

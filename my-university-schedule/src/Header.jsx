@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getToken, onMessage } from 'firebase/messaging';
 import { messaging, database } from './firebase';
 import { ref, set } from 'firebase/database';
+
 // --- 🎨 طقم أيقونات الثيمات المزاجية ---
 
 const HeartsIcon = ({ color }) => (
@@ -47,6 +48,13 @@ const ScheduleIcon = () => (
   </svg>
 );
 
+// 🌟 أيقونة الواجبات 🌟
+const AssignmentIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+    <path d="M11.25 5.337c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.036 1.007-1.875 2.25-1.875S15 2.34 15 3.375c0 .369-.128.713-.349 1.003-.215.283-.401.604-.401.959 0 .332.278.598.61.578 1.91-.114 3.79-.342 5.632-.676a.75.75 0 0 1 .878.645 49.17 49.17 0 0 1 .376 5.452.657.657 0 0 1-.66.664c-.354 0-.675-.186-.958-.401a1.647 1.647 0 0 0-1.003-.349c-1.035 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401.31 0 .557.262.534.571a48.774 48.774 0 0 1-.595 4.845.75.75 0 0 1-.61.61c-1.82.317-3.673.533-5.555.642a.58.58 0 0 1-.611-.581c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.035-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959a.641.641 0 0 1-.658.643 49.118 49.118 0 0 1-4.708-.36.75.75 0 0 1-.645-.878c.293-1.614.504-3.257.629-4.924A.53.53 0 0 0 5.337 15c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.036 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.369 0 .713.128 1.003.349.283.215.604.401.959.401a.656.656 0 0 0 .659-.663 47.703 47.703 0 0 0-.31-4.82.75.75 0 0 1 .83-.832c1.343.155 2.703.254 4.077.294a.64.64 0 0 0 .657-.642Z" />
+  </svg>
+);
+
 // 🌟 أيقونة الجرس مع أنيميشن الخط المائل 🌟
 const BellIcon = ({ isSubscribed }) => {
   return (
@@ -86,7 +94,6 @@ const BellIcon = ({ isSubscribed }) => {
   );
 };
 
-
 function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
   const [isThemesOpen, setIsThemesOpen] = useState(false);
   const themesContainerRef = useRef(null);
@@ -110,7 +117,6 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  // 🌟 التقاط الإشعار والتطبيق مفتوح أمام المستخدم 🌟
   useEffect(() => {
     const unsubscribe = onMessage(messaging, (payload) => {
       if (payload.notification) {
@@ -136,12 +142,7 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
           localStorage.setItem('fcm_subscribed', 'true');
           
           try {
-            // 🌟 استخدام مسار صريح متوافق مع Vercel 🌟
-            const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-  scope: '/'
-});
-            
-            // 🌟 تنبيه: يجب وضع مفتاح الـ VAPID الخاص بك هنا 🌟
+            const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
             const token = await getToken(messaging, { 
               vapidKey: 'BE-ZU08UafjtNFOXQYvEW_OOjmTdo-D7SNCS4UVXEsmueTo-Nt84D6j5yM5srwrxVEu7xnC24LYjR1FdrjW5fuI',
               serviceWorkerRegistration: swRegistration 
@@ -162,7 +163,6 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
     }
   };
 
-  // 🌟 التقاط الإشعارات والتطبيق مفتوح وتحويلها لإشعار نظام 🌟
   useEffect(() => {
     if (!messaging) return;
 
@@ -172,12 +172,11 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
       const title = payload.notification?.title || payload.data?.title || "تنبيه جديد";
       const options = {
         body: payload.notification?.body || payload.data?.body,
-        icon: '/pwa-192x192.png', // تأكد أن الأيقونة موجودة في مجلد public
+        icon: '/pwa-192x192.png',
         vibrate: [200, 100, 200],
         dir: 'rtl'
       };
 
-      // هذا الأمر يجبر المتصفح أو الهاتف على إظهار إشعار رسمي حتى لو كنت داخل الموقع
       if (Notification.permission === 'granted') {
         new Notification(title, options);
       }
@@ -382,21 +381,56 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
             <BellIcon isSubscribed={isSubscribed} />
           </button>
 
+          {/* 🌟 زر التبديل للواجبات 🌟 */}
           <button 
-            onClick={() => onTabChange(activeTab === 'schedule' ? 'materials' : 'schedule')}
+            onClick={() => onTabChange(activeTab === 'assignments' ? 'schedule' : 'assignments')}
             style={{
-              background: 'transparent', border: 'none', color: 'var(--primary-color)',
+              background: 'transparent', border: 'none', color: activeTab === 'assignments' ? 'var(--text-pure)' : 'var(--primary-color)',
               cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'all 0.3s ease',
               display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
               width: '32px', height: '32px', overflow: 'hidden',
+              backgroundColor: activeTab === 'assignments' ? 'var(--primary-color)' : 'transparent',
               WebkitTapHighlightColor: 'transparent'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--card-bg-locked)'; e.currentTarget.style.color = 'var(--text-pure)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--primary-color)'; }}
+            onMouseEnter={(e) => { if(activeTab !== 'assignments') { e.currentTarget.style.backgroundColor = 'var(--card-bg-locked)'; e.currentTarget.style.color = 'var(--text-pure)'; } }}
+            onMouseLeave={(e) => { if(activeTab !== 'assignments') { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--primary-color)'; } }}
+            title={activeTab === 'assignments' ? "العودة للجدول" : "الواجبات والتقارير"}
           >
             <div style={{ 
               position: 'absolute', transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
-              opacity: activeTab === 'schedule' ? 1 : 0, transform: activeTab === 'schedule' ? 'scale(1)' : 'scale(0.3)',
+              opacity: activeTab !== 'assignments' ? 1 : 0, transform: activeTab !== 'assignments' ? 'scale(1)' : 'scale(0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center' 
+            }}>
+              <AssignmentIcon />
+            </div>
+
+            <div style={{ 
+              position: 'absolute', transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
+              opacity: activeTab === 'assignments' ? 1 : 0, transform: activeTab === 'assignments' ? 'scale(1)' : 'scale(0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center' 
+            }}>
+              <ScheduleIcon />
+            </div>
+          </button>
+
+          {/* 🌟 زر التبديل للملازم 🌟 */}
+          <button 
+            onClick={() => onTabChange(activeTab === 'materials' ? 'schedule' : 'materials')}
+            style={{
+              background: 'transparent', border: 'none', color: activeTab === 'materials' ? 'var(--text-pure)' : 'var(--primary-color)',
+              cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'all 0.3s ease',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+              width: '32px', height: '32px', overflow: 'hidden',
+              backgroundColor: activeTab === 'materials' ? 'var(--primary-color)' : 'transparent',
+              WebkitTapHighlightColor: 'transparent'
+            }}
+            onMouseEnter={(e) => { if(activeTab !== 'materials') { e.currentTarget.style.backgroundColor = 'var(--card-bg-locked)'; e.currentTarget.style.color = 'var(--text-pure)'; } }}
+            onMouseLeave={(e) => { if(activeTab !== 'materials') { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--primary-color)'; } }}
+            title={activeTab === 'materials' ? "العودة للجدول" : "الملازم الدراسية"}
+          >
+            <div style={{ 
+              position: 'absolute', transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
+              opacity: activeTab !== 'materials' ? 1 : 0, transform: activeTab !== 'materials' ? 'scale(1)' : 'scale(0.3)',
               display: 'flex', alignItems: 'center', justifyContent: 'center' 
             }}>
               <PaperIcon />
@@ -410,6 +444,7 @@ function Header({ currentTheme, onThemeSelect, activeTab, onTabChange }) {
               <ScheduleIcon />
             </div>
           </button>
+
         </div>
       </header>
     </>

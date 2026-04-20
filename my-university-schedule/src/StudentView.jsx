@@ -60,6 +60,13 @@ const FoxIcon = () => (
   </svg>
 );
 /* --- نهاية أيقونة الثعلب --- */
+
+/* --- أيقونة الواجبات والتقارير --- */
+const AssignmentIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+    <path d="M11.25 5.337c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.036 1.007-1.875 2.25-1.875S15 2.34 15 3.375c0 .369-.128.713-.349 1.003-.215.283-.401.604-.401.959 0 .332.278.598.61.578 1.91-.114 3.79-.342 5.632-.676a.75.75 0 0 1 .878.645 49.17 49.17 0 0 1 .376 5.452.657.657 0 0 1-.66.664c-.354 0-.675-.186-.958-.401a1.647 1.647 0 0 0-1.003-.349c-1.035 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401.31 0 .557.262.534.571a48.774 48.774 0 0 1-.595 4.845.75.75 0 0 1-.61.61c-1.82.317-3.673.533-5.555.642a.58.58 0 0 1-.611-.581c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.035-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959a.641.641 0 0 1-.658.643 49.118 49.118 0 0 1-4.708-.36.75.75 0 0 1-.645-.878c.293-1.614.504-3.257.629-4.924A.53.53 0 0 0 5.337 15c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.036 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.369 0 .713.128 1.003.349.283.215.604.401.959.401a.656.656 0 0 0 .659-.663 47.703 47.703 0 0 0-.31-4.82.75.75 0 0 1 .83-.832c1.343.155 2.703.254 4.077.294a.64.64 0 0 0 .657-.642Z" />
+  </svg>
+);
 /* ------------------------- */
 
 // ------------------------------------------------------------------------------------------------------------------------
@@ -84,6 +91,16 @@ function StudentView() {
     "معمارية الحاسوب", 
     "اللغة الانكليزية",
     "SE | PowePoint Version",
+  ];
+
+  // 🌟 القائمة الموحدة لأسماء المواد في قسم الواجبات والجدول
+  const scheduleSubjectsList = [
+    "البرمجة الكائنية", 
+    "هياكل البيانات 2", 
+    "هندسة البرمجيات",
+    "قواعد بيانات موزعة", 
+    "معمارية الحاسوب", 
+    "اللغة الانكليزية",
   ];
   
   const [allScheduleData, setAllScheduleData] = useState({});
@@ -273,7 +290,7 @@ function StudentView() {
   }
 
   const hasNewUpdate = (day) => {
-    if (activeTab === 'materials') return false; 
+    if (activeTab === 'materials' || activeTab === 'assignments') return false; 
     const dayData = getDayDataHelper(currentWeek, day);
     if (!dayData || !dayData.lastUpdated) return false;
 
@@ -325,7 +342,7 @@ function StudentView() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (activeTab === 'materials') return; 
+      if (activeTab === 'materials' || activeTab === 'assignments') return; 
 
       if (e.key === 'ArrowLeft') {
         triggerThemeBurst(currentWeek); 
@@ -403,11 +420,12 @@ function StudentView() {
     return allScheduleData[weekKey] && allScheduleData[weekKey][day] ? allScheduleData[weekKey][day] : null;
   }
 
-  const getDateForDay = (dayIndex) => {
+  // 🌟 تحديث دالة جلب التاريخ لتدعم أسابيع أخرى لحساب الواجبات 🌟
+  const getDateForDay = (dayIndex, weekIndex = currentWeek) => {
     const startDate = new Date(2026, 1, 1); 
-    const daysToAdd = (currentWeek * 7) + dayIndex;
+    const daysToAdd = (weekIndex * 7) + dayIndex;
     startDate.setDate(startDate.getDate() + daysToAdd);
-    return `${startDate.getDate()} / ${startDate.getMonth() + 1}`;
+    return startDate;
   }
 
   const getDirectDownloadLink = (url) => {
@@ -418,6 +436,56 @@ function StudentView() {
     }
     return url;
   };
+
+  // 🌟 معالجة بيانات قسم الواجبات والتقارير لتكون بطاقات منفصلة 🌟
+  const getCountdown = (targetDate) => {
+    const now = new Date();
+    const target = new Date(targetDate);
+    target.setHours(23, 59, 59, 999);
+    const diff = target.getTime() - now.getTime();
+    const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
+
+    if (diff < 0) return { text: "انتهى", color: "#ef4444" }; // أحمر
+    if (diffDays === 0) return { text: "ينتهي اليوم", color: "#10b981" }; // أخضر
+    if (diffDays === 1) return { text: "تبقى يوم", color: "#10b981" }; 
+    if (diffDays === 2) return { text: "تبقى يومان", color: "#10b981" };
+    if (diffDays <= 10) return { text: `تبقى ${diffDays} أيام`, color: "#10b981" }; 
+    return { text: `تبقى ${diffDays} يوم`, color: "#10b981" }; 
+  };
+
+  const allAssignmentsList = [];
+
+  for (let w = 0; w < 15; w++) {
+    const weekKey = `week_${w}`;
+    if (allScheduleData[weekKey]) {
+      days.forEach((day, dIdx) => {
+        const dayData = allScheduleData[weekKey][day];
+        if (dayData && Array.isArray(dayData.subjects)) {
+          dayData.subjects.forEach(subj => {
+            if (subj.type === "واجب" || subj.type === "تقرير") {
+              const targetDate = getDateForDay(dIdx, w);
+              targetDate.setHours(23, 59, 59, 999);
+              
+              const now = new Date();
+              const expiryTime = targetDate.getTime() + (24 * 60 * 60 * 1000); 
+              
+              if (now.getTime() <= expiryTime) {
+                allAssignmentsList.push({
+                  ...subj,
+                  targetDate,
+                  weekStr: weeks[w],
+                  dayStr: day
+                });
+              }
+            }
+          });
+        }
+      });
+    }
+  }
+
+  // ترتيب الواجبات حسب الأقرب موعداً أولاً
+  allAssignmentsList.sort((a, b) => a.targetDate - b.targetDate);
 
   // 🌟 شاشة التحميل الاحترافية (9 مستطيلات تشكل حرف V) 🌟
   if (loading ) {
@@ -531,10 +599,10 @@ function StudentView() {
         </div>
       ))}
       
-      <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} />  
+      <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} />  
       
       <h1 style={{ textAlign: 'center', color: 'var(--text-pure)', marginBottom: '20px', marginTop: '10px' }}>
-        {activeTab === 'schedule' ? 'الجدول الأسبوعي' : 'الملازم الدراسية'}
+        {activeTab === 'schedule' ? 'الجدول الأسبوعي' : activeTab === 'materials' ? 'الملازم الدراسية' : 'الواجبات والتقارير'}
       </h1>
 
       {/* ===================== قسم الجدول ===================== */}
@@ -624,7 +692,8 @@ function StudentView() {
                 const dayInfo = getDayData(day);
                 const isLocked = !dayInfo || !dayInfo.isOpen;
                 const isExpanded = selectedDay === day;
-                const dateString = getDateForDay(index);
+                const targetDate = getDateForDay(index, currentWeek);
+                const dateString = `${targetDate.getDate()} / ${targetDate.getMonth() + 1}`;
                 const isExam = dayInfo ? dayInfo.isExam : false;
                 
                 const statusColor = getStatusColor(isExam);
@@ -657,52 +726,88 @@ function StudentView() {
                         <div style={{ margin: '10px 0' }}>
                           {dayInfo && Array.isArray(dayInfo.subjects) ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                              {dayInfo.subjects.map((subj, idx) => {
-                                
-                                let eventColor = 'var(--text-muted)'; 
-                                const eventType = subj.type || 'محاضرة';
-                                const subjectName = subj.name || 'مادة سابقة';
 
-                                return (
-                                  <div key={idx} 
-                                  className="subject-inner-card"
-                                  style={{ 
-                                    backgroundColor: 'var(--card-bg-locked)', 
-                                    borderRadius: '12px',
-                                    padding: '16px',
-                                    display: 'flex',
-                                    flexDirection: 'column', 
-                                    gap: '4px',
-                                    textAlign: 'right',
-                                    borderRight: `4px solid ${eventColor}`,
-                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-                                  }}>
-                                    
-                                    <span style={{ 
-                                      color: 'var(--text-details)', 
-                                      fontSize: '13px', 
-                                      fontWeight: 'bold',
-                                      display: 'flex', 
-                                      alignItems: 'center', 
-                                      gap: '6px' 
-                                    }}>
-                                      {eventType === 'محاضرة' && <LectureIcon />}
-                                      {eventType === 'مختبر' && <LabIcon />}
-                                      {eventType}
-                                    </span>
-                                    
-                                    <span style={{ color: 'var(--text-pure)', fontSize: '18px', fontWeight: 'bold', marginTop: '2px' }}>
-                                      {subjectName}
-                                    </span>
-                                    
-                                    {subj.content && (
-                                      <span style={{ color: 'var(--text-details)', fontSize: '14px', whiteSpace: 'pre-wrap', marginTop: '4px', lineHeight: '1.6' }}>
-                                        {subj.content}
-                                      </span>
-                                    )}
-                                  </div>
-                                )
-                              })}
+{dayInfo.subjects.map((subj, idx) => {
+  
+  // 🌟 التحقق إذا كان الحدث امتحان لتحديد لون النص فقط 🌟
+  const isSpecificExam = subj.type === 'امتحان';
+  let typeAndContentColor = isSpecificExam ? '#ff4444' : 'var(--text-details)';
+  let eventTypeColor = isSpecificExam ? '#ff4444' : 'var(--text-details)';
+  
+  const eventType = subj.type || 'محاضرة';
+  const subjectName = subj.name || 'مادة سابقة';
+
+  return (
+    <div key={idx} 
+    className="subject-inner-card"
+    style={{ 
+      backgroundColor: 'var(--card-bg-locked)', 
+      borderRadius: '12px',
+      padding: '16px',
+      display: 'flex',
+      flexDirection: 'column', 
+      gap: '4px',
+      textAlign: 'right',
+      borderRight: `4px solid ${isSpecificExam ? '#ff4444' : 'var(--text-muted)'}`,
+      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+    }}>
+      
+      <span style={{ 
+        color: eventTypeColor, // 🌟 أحمر لـ "امتحان"
+        fontSize: '13px', 
+        fontWeight: 'bold',
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '6px' 
+      }}>
+        {eventType === 'محاضرة' && <LectureIcon />}
+        {eventType === 'مختبر' && <LabIcon />}
+        {(eventType === 'واجب' || eventType === 'تقرير') && <AssignmentIcon />}
+        {eventType}
+      </span>
+      
+      <span style={{ color: 'var(--text-pure)', fontSize: '18px', fontWeight: 'bold', marginTop: '2px' }}>
+        {subjectName} {/* 🌟 اسم المادة يبقى كما هو باللون الأصلي 🌟 */}
+      </span>
+      
+      {subj.content && (
+        <span style={{ 
+          color: typeAndContentColor, // 🌟 أحمر للتفاصيل إذا كان امتحان
+          fontSize: '14px', 
+          whiteSpace: 'pre-wrap', 
+          marginTop: '4px', 
+          lineHeight: '1.6' 
+        }}>
+          {subj.content}
+        </span>
+      )}
+
+      {subj.imageUrl && (
+        <div style={{ marginTop: '10px' }}>
+          <a 
+            href={subj.imageUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            style={{ 
+              display: 'inline-block', 
+              backgroundColor: 'var(--primary-color)', 
+              color: 'white', 
+              padding: '6px 16px', 
+              borderRadius: '6px', 
+              textDecoration: 'none', 
+              fontSize: '12px', 
+              fontWeight: 'bold', 
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)' 
+            }}
+          >
+               عرض  
+          </a>
+        </div>
+      )} 
+    </div>
+  )
+})}
                             </div>
                           ) : ( <p style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--text-pure)' }}>{dayInfo ? dayInfo.subjects : "فراغ"}</p> )}
                         </div>
@@ -746,7 +851,7 @@ function StudentView() {
                         : 'inset 0 0 5px rgba(255,255,255,0.8), 0 0 8px var(--primary-color)')
                     : (theme === 'ocean-light'
                         ? 'inset 0 0 3px rgba(2, 132, 199, 0.4)'
-                        : 'inset 0 0 3px rgba(255,255,255,0.3)'),
+                        : 'inset 0 0 3px rgba(2, 132, 199, 0.3)'),
                   border: currentWeek === index 
                     ? (theme === 'ocean-light' ? '1px solid rgba(2, 132, 199, 0.8)' : '1px solid rgba(255,255,255,0.8)')
                     : (theme === 'ocean-light' ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid rgba(255,255,255,0.2)'),
@@ -902,6 +1007,96 @@ function StudentView() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ===================== 🌟 قسم الواجبات والتقارير الجديد (بطاقات منفصلة وتفتح للأسفل) 🌟 ===================== */}
+      {activeTab === 'assignments' && (
+        <div className="week-animate" style={{ paddingBottom: '30px' }}>
+          <div style={{ WebkitTapHighlightColor: 'transparent', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {allAssignmentsList.length > 0 ? (
+              allAssignmentsList.map((assign, idx) => {
+                const countdown = getCountdown(assign.targetDate);
+                const isExpanded = selectedSubject === `assign-${idx}`;
+                
+                return (
+                  <div 
+                    key={idx} 
+                    onClick={() => setSelectedSubject(isExpanded ? null : `assign-${idx}`)} 
+                    className={`day-card ${isExpanded ? 'expanded' : ''} subject-inner-card`} 
+                    style={{ 
+                      backgroundColor: 'var(--card-bg-locked)', 
+                      borderRadius: '12px', 
+                      display: 'flex', 
+                      flexDirection: 'column',
+                      borderRight: `4px solid ${countdown.color}`,
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                      cursor: 'pointer',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px' }}>
+                      <span style={{ color: 'var(--text-pure)', fontWeight: 'bold', fontSize: '17px' }}>
+                        {assign.type} {assign.name}
+                      </span>
+                      <span style={{ 
+                        color: countdown.color, 
+                        fontSize: '12px', 
+                        fontWeight: 'bold', 
+                        padding: '4px 10px', 
+                        backgroundColor: `${countdown.color}1a`, 
+                        borderRadius: '6px',
+                        border: `1px solid ${countdown.color}4d`,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {countdown.text}
+                      </span>
+                    </div>
+                    
+                    <div style={{ maxHeight: isExpanded ? '2000px' : '0px', opacity: isExpanded ? 1 : 0, transition: isExpanded ? 'max-height 1.3s ease, opacity 0.7s ease' : 'all 0.5s ease', overflow: 'hidden' }}>
+                      <div style={{ padding: '0 16px 16px 16px' }}>
+                        <div style={{ color: 'var(--text-pure)', fontSize: '16px', whiteSpace: 'pre-wrap', lineHeight: '1.6', borderTop: '1px dashed var(--border-line)', paddingTop: '10px' }}>
+                          {assign.content || 'لا توجد تفاصيل.'}
+                          {/* عرض الصورة إذا وجدت */}
+                              {/* عرض الصورة أو زر فتح المرفق */}
+                          {assign.imageUrl && (
+                            <div style={{ marginTop: '15px', borderTop: '1px dashed var(--border-line)', paddingTop: '15px', textAlign: 'center' }}>
+                              <img 
+                                src={assign.imageUrl} 
+                                alt="المرفق" 
+                                style={{ width: '100%', maxHeight: '300px', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer', marginBottom: '10px' }} 
+                                onClick={(e) => { e.stopPropagation(); window.open(assign.imageUrl, '_blank'); }}
+                                onError={(e) => e.target.style.display = 'none'} // يخفي الصورة إذا لم تكن صالحة، لكن يترك الزر
+                              />
+                              <a 
+                                href={assign.imageUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ 
+                                  display: 'inline-block', backgroundColor: 'var(--primary-color)', color: 'white', padding: '8px 20px', borderRadius: '6px', textDecoration: 'none', fontSize: '13px', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' 
+                                }}
+                              >
+                               عرض
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                        <p> </p>
+                         <div style={{ marginBottom: '8px', color: 'var(--text-details)', fontWeight: 'bold', fontSize: '12px' }}>
+                           تاريخ التسليم: {assign.dayStr} ({assign.targetDate.getDate()} / {assign.targetDate.getMonth() + 1})
+                          </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              <div style={{ backgroundColor: 'var(--card-bg-normal)', borderRadius: '12px', padding: '30px 20px', textAlign: 'center', borderLeft: '5px solid var(--dot-bg)' }}>
+                <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '15px', fontWeight: 'bold' }}>لا توجد واجبات أو تقارير نشطة حالياً.</p>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -33,7 +33,8 @@ function Admin() {
     "اللغة الانكليزية",
   ];
   
-  const eventTypes = ["محاضرة", "مختبر", "امتحان", "أُخرى"];
+  // 🌟 إضافة خياري "واجب" و "تقرير" هنا 🌟
+  const eventTypes = ["محاضرة", "مختبر", "امتحان", "أُخرى", "واجب", "تقرير"];
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -51,6 +52,9 @@ function Admin() {
   const [isDayOpen, setIsDayOpen] = useState(false);
   const [isExam, setIsExam] = useState(false);
 
+  // 🌟 حالة الإشعارات العامة 🌟
+  const [isNotificationsEnabled, setIsNotificationsEnabled] = useState(true);
+
   const [activeTab, setActiveTab] = useState('schedule'); 
   const [selectedSubject, setSelectedSubject] = useState(null); 
   
@@ -61,7 +65,6 @@ function Admin() {
   
   const [showScrollTop, setShowScrollTop] = useState(false);
 
-  // 🌟 حالات الإشعار المخصص 🌟
   const [notifTitle, setNotifTitle] = useState('');
   const [notifBody, setNotifBody] = useState('');
 
@@ -106,6 +109,11 @@ function Admin() {
         setAllScheduleData(data);
         setMaterialsData(data.materials || {}); 
         if (data.materials) setMaterialsData(data.materials);
+        
+        // 🌟 جلب حالة الإشعارات من القاعدة 🌟
+        if (data.settings) {
+          setIsNotificationsEnabled(data.settings.notificationsEnabled ?? true);
+        }
       }
       setLoading(false);
     });
@@ -151,10 +159,8 @@ function Admin() {
     } catch (error) { showNotification("فشل التغيير: " + error.message); }
   };
 
-  // 🌟 دالة إرسال الإشعار المنبثق الحقيقي (تعمل والتطبيق مغلق) عبر سيرفر Vercel 🌟
   const sendRealPushNotification = async (title, body) => {
     try {
-      // 1. جلب توكنات الأجهزة المشتركة
       const tokensSnapshot = await get(ref(database, 'fcmTokens'));
       if (!tokensSnapshot.exists()) {
         console.log("لا يوجد أجهزة مشتركة");
@@ -163,7 +169,6 @@ function Admin() {
       
       const tokens = Object.keys(tokensSnapshot.val());
 
-      // 2. إرسال الطلب إلى سيرفر Vercel الخاص بك
       const response = await fetch('/api/send-notification', {
         method: 'POST',
         headers: {
@@ -183,14 +188,10 @@ function Admin() {
     }
   };
 
-  // 🌟 دالة إرسال الإشعار المخصص 🌟
   const sendCustomNotification = async () => {
     if (!notifTitle.trim() || !notifBody.trim()) return showNotification("⚠️ الرجاء كتابة عنوان وتفاصيل الإشعار!");
     try {
-      // إرسال الإشعار الحقيقي للأجهزة المغلقة
       await sendRealPushNotification(notifTitle, notifBody);
-
-      // التحديث القديم للقاعدة (للأجهزة التي تفتح التطبيق حالياً)
       await update(ref(database, '/'), {
         latest_notification: {
           title: notifTitle,
@@ -202,6 +203,18 @@ function Admin() {
       setNotifTitle('');
       setNotifBody('');
     } catch (error) { showNotification("❌ فشل إرسال الإشعار"); }
+  };
+
+  // 🌟 دالة تبديل حالة الإشعارات العامة 🌟
+  const toggleGlobalNotifications = async () => {
+    const newStatus = !isNotificationsEnabled;
+    setIsNotificationsEnabled(newStatus);
+    try {
+      await update(ref(database, 'settings'), { notificationsEnabled: newStatus });
+      showNotification(newStatus ? "🔔 تم تفعيل بث الإشعارات" : "🔕 تم إيقاف بث الإشعارات");
+    } catch (error) {
+      showNotification("❌ فشل تحديث الإعدادات");
+    }
   };
 
   const nextWeek = () => { setSelectedDay(null); setCurrentWeek(prev => prev < weeks.length - 1 ? prev + 1 : 0); }
@@ -226,7 +239,7 @@ function Admin() {
     return `${startDate.getDate()} / ${startDate.getMonth() + 1}`;
   }
 
-  const addSubject = () => setSubjectsList([{ type: "محاضرة", name: scheduleSubjects[0], content: "" }, ...subjectsList]); 
+  const addSubject = () => setSubjectsList([...subjectsList, { type: "محاضرة", name: scheduleSubjects[0], content: "" }]); 
   const updateSubject = (index, field, value) => { const newList = [...subjectsList]; newList[index][field] = value; setSubjectsList(newList); };
   const removeSubject = (index) => setSubjectsList(subjectsList.filter((_, i) => i !== index));
   const handleTextareaResize = (e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; };
@@ -236,22 +249,24 @@ function Admin() {
     try {
       await update(ref(database, `week_${currentWeek}/${selectedDay}`), { subjects: subjectsList, isOpen: isDayOpen === true, isExam: isExam === true, lastUpdated: Date.now() });
       
-      const title = "تحديث في الجدول 📅";
-      const body = `تم تحديث بيانات يوم ${selectedDay} في ${weeks[currentWeek]}`;
+      // إرسال الإشعار فقط إذا كان اليوم مفعلاً ومفتاح الإشعارات مفعلاً
+      if (isDayOpen === true && isNotificationsEnabled === true) {
+        const title = "تحديث في الجدول 📅";
+        const body = `تم تحديث بيانات يوم ${selectedDay} في ${weeks[currentWeek]}`;
 
-      // إرسال الإشعار الحقيقي للأجهزة المغلقة
-      await sendRealPushNotification(title, body);
+        await sendRealPushNotification(title, body);
 
-      // 🌟 إرسال إشعار تلقائي للطلاب بتحديث الجدول 🌟
-      await update(ref(database, '/'), {
-        latest_notification: {
-          title: title,
-          body: body,
-          timestamp: Date.now()
-        }
-      });
-
-      showNotification("✅ تم حفظ التغييرات وإرسال إشعار");
+        await update(ref(database, '/'), {
+          latest_notification: {
+            title: title,
+            body: body,
+            timestamp: Date.now()
+          }
+        });
+        showNotification("✅ تم الحفظ وإرسال إشعار");
+      } else {
+        showNotification("✅ تم حفظ التعديلات بصمت");
+      }
     } catch (error) { showNotification("❌ حدث خطأ أثناء الحفظ"); }
   }
 
@@ -389,7 +404,7 @@ function Admin() {
       <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} />
       
       <h1 style={{ textAlign: 'center', color: 'var(--text-pure)', marginBottom: '20px', marginTop: '10px' }}>
-        {activeTab === 'schedule' ? 'لوحة التحكم - الجدول' : 'لوحة التحكم - الملازم'}
+        {activeTab === 'schedule' ? 'لوحة التحكم - الجدول' : activeTab === 'materials' ? 'لوحة التحكم - الملازم' : 'لوحة التحكم - الواجبات'}
       </h1>
 
       {/* ===================== قسم الجدول (الأساسي) ===================== */}
@@ -413,7 +428,7 @@ function Admin() {
                 return (
                   <div key={index} className={`day-card ${isExpanded ? 'expanded' : ''}`} style={{ opacity: displayOpacity, borderLeft: `5px solid ${isExpanded ? (isExam ? '#ff0000' : 'var(--primary-color)') : (isActuallyOpen ? statusColor : 'var(--dot-bg)')}`, backgroundColor: isExpanded ? 'var(--card-bg-expanded)' : 'var(--card-bg-normal)', transition: 'opacity 0.3s ease, border-color 0.3s ease, background-color 0.3s ease', borderRadius: '8px' }}>
                     <div onClick={() => toggleDay(day)} style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
-                      <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-pure)' }}>{day} {isExpanded ? ' ' : ''} {isExamDay && !isExpanded ? ' ' : ''}</h3>
+                      <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-pure)' }}>{day}</h3>
                       <span style={{ fontSize: '14px', fontFamily: 'sans-serif', fontWeight: 'bold', padding: '4px 12px', borderRadius: '6px', color: isExpanded ? statusColor : 'var(--text-muted)', backgroundColor: isExpanded ? `${statusColor}1a` : 'transparent', border: isExpanded ? `1px solid ${statusColor}4d` : '1px solid transparent' }}>{dateString}</span>
                     </div>
                     
@@ -457,6 +472,17 @@ function Admin() {
                                 <div style={{ paddingRight: '5px' }}>
                                   <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>تفاصيل إضافية</div>
                                   <textarea placeholder="محتوى الدرس أو الملاحظات..." value={subject.content} onChange={(e) => { handleTextareaResize(e); updateSubject(idx, 'content', e.target.value); }} style={{ padding: '12px 14px', borderRadius: '6px', border: '1px solid var(--border-line)', backgroundColor: 'var(--card-bg-normal)', color: 'var(--text-pure)', fontFamily: 'inherit', resize: 'none', minHeight: '50px', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                                  
+                                  <div style={{ marginTop: '10px' }}>
+                                      <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>رابط صورة توضيحية (اختياري)</div>
+                                      <input 
+                                        type="url" 
+                                        placeholder="ضع رابط الصورة هنا..." 
+                                        value={subject.imageUrl || ""} 
+                                        onChange={(e) => updateSubject(idx, 'imageUrl', e.target.value)} 
+                                        style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border-line)', backgroundColor: 'var(--card-bg-normal)', color: 'var(--text-pure)', width: '100%', boxSizing: 'border-box', direction: 'ltr' }} 
+                                      />
+                                  </div>
                                 </div>
                               </div>
                             ))}
@@ -500,10 +526,23 @@ function Admin() {
                 />
                 <button 
                   onClick={sendCustomNotification} 
-                  style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '8px', padding: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px', WebkitTapHighlightColor: 'transparent' }}
+                  style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '8px', padding: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px', WebkitTapHighlightColor: 'transparent', marginBottom: '15px' }}
                 >
                   إرسال الإشعار الآن 🚀
                 </button>
+
+                {/* 🌟 نقل زر تفعيل بث الإشعارات التلقائي هنا 🌟 */}
+                <div style={{ marginTop: '10px', padding: '10px', borderTop: '1px solid var(--border-line)' }}>
+                  <ToggleSwitch 
+                    label="بث الإشعارات التلقائي" 
+                    isChecked={isNotificationsEnabled} 
+                    onChange={toggleGlobalNotifications} 
+                    activeColor="#ff9800" 
+                  />
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'center', lineHeight: '1.4' }}>
+                    * عند الإيقاف، سيتم حفظ تحديثات الجدول بصمت دون إرسال إشعارات.
+                  </p>
+                </div>
               </div>
             </div>
 

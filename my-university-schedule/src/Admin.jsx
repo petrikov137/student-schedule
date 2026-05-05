@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import ExamScheduleAdmin from './ExamScheduleAdmin'; //Temp
 import { database } from './firebase'
 import { ref, onValue, update, get, child, set } from 'firebase/database'
 import Header from './Header'; 
@@ -640,7 +641,7 @@ function Admin() {
           <path d="M12 19V5M5 12l7-7 7 7"/>
         </svg>
       </button>
-
+                                                         <ExamScheduleAdmin showNotification={showNotification} />
     </div>
   )
 }

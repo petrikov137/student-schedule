@@ -1,4 +1,5 @@
 import Header from './Header';
+import ExamScheduleStudent from './ExamScheduleStudent'; // Temp
 import { useState, useEffect, useCallback, useRef } from 'react' 
 import { database } from './firebase'
 import { ref, onValue } from 'firebase/database'
@@ -1100,9 +1101,9 @@ function StudentView() {
           </div>
         </div>
       )}
+                                 <ExamScheduleStudent/>  
 
     </div>
   )
 }
-
 export default StudentView

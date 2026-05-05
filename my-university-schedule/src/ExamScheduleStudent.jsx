@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { database } from './firebase';
 import { ref, onValue } from 'firebase/database';
 
@@ -132,10 +133,11 @@ export default function ExamScheduleStudent() {
         </span>
       </button>
 
-      {isOpen && (
+      {/* 🌟 الحل الجذري هنا: حقن النافذة في document.body متجاهلة زوم الأب 🌟 */}
+      {isOpen && typeof document !== 'undefined' ? createPortal(
         <div className="artistic-scroll" style={{
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-          backgroundColor: 'rgba(10, 10, 15, 0.65)', zIndex: 10000,
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%',
+          backgroundColor: 'rgba(10, 10, 15, 0.65)', zIndex: 100000,
           overflowY: 'auto', padding: '20px', boxSizing: 'border-box',
           backdropFilter: 'blur(20px) saturate(18%)', WebkitBackdropFilter: 'blur(25px) saturate(1%)',
           animation: 'modalEnter 0.6s cubic-bezier(0.22, 1, 0.36, 1) both'
@@ -285,8 +287,9 @@ export default function ExamScheduleStudent() {
               })}
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body 
+      ) : null}
     </>
   );
 }

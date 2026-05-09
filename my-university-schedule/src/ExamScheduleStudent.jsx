@@ -8,6 +8,9 @@ export default function ExamScheduleStudent() {
   const [exams, setExams] = useState([]);
   const [materialsData, setMaterialsData] = useState({});
   const [selectedDay, setSelectedDay] = useState(null);
+  
+  // 🌟 إضافة حالة للتحكم في عرض ملفات HTML 🌟
+  const [activeHtmlFile, setActiveHtmlFile] = useState(null);
 
   const examSubjectsMap = {
     "برمجة كائنية": "برمجة كائنية  |   نظري",
@@ -47,7 +50,7 @@ export default function ExamScheduleStudent() {
   return (
     <>
       <style>{`
-        /*  الأنيميشن الأساسي  */
+        /* الأنيميشن الأساسي  */
         @keyframes floatMagic {
           0% { transform: translateY(0px) scale(1) translateX(-50%); }
           50% { transform: translateY(-8px) scale(1.02) translateX(-50%); }
@@ -242,35 +245,58 @@ export default function ExamScheduleStudent() {
                             
                             {subjectMaterials.length > 0 ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {subjectMaterials.map((mat, idx) => (
-                                  <div key={idx} 
-                                    onClick={(e) => e.stopPropagation()} 
-                                    style={{ 
-                                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-                                      padding: '14px 16px', borderRadius: '14px',
-                                      background: 'rgba(255, 255, 255, 0.03)',
-                                      transition: 'all 0.3s ease', cursor: 'default'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)'}
-                                  >
-                                    <span style={{ color: '#ffffff', fontSize: '16px', fontWeight: '800', opacity: 0.9 }}>
-                                      {mat.title}
-                                    </span>
-                                    <a href={getDirectDownloadLink(mat.link)} target="_blank" rel="noopener noreferrer" download 
+                                {subjectMaterials.map((mat, idx) => {
+                                  // 🌟 التحقق إذا كان الملف HTML 🌟
+                                  const isHtmlFile = mat.title.toLowerCase().includes('.html') || mat.link.toLowerCase().includes('.html');
+                                  const finalLink = isHtmlFile ? mat.link : getDirectDownloadLink(mat.link);
+
+                                  return (
+                                    <div key={idx} 
+                                      onClick={(e) => e.stopPropagation()} 
                                       style={{ 
-                                        background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', 
-                                        padding: '8px 20px', borderRadius: '20px', textDecoration: 'none', 
-                                        fontSize: '13px', fontWeight: 'bold', border: '1px solid rgba(255,255,255,0.1)',
-                                        transition: 'all 0.3s cubic-bezier(0.25, 1, 0.5, 1)', backdropFilter: 'blur(5px)'
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                        padding: '14px 16px', borderRadius: '14px',
+                                        background: 'rgba(255, 255, 255, 0.03)',
+                                        transition: 'all 0.3s ease', cursor: 'default'
                                       }}
-                                      onMouseEnter={(e) => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#ff0844'; e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(255,255,255,0.2)'; }}
-                                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'}
+                                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)'}
                                     >
-                                      تنزيل
-                                    </a>
-                                  </div>
-                                ))}
+                                      <span style={{ color: '#ffffff', fontSize: '16px', fontWeight: '800', opacity: 0.9 }}>
+                                        {mat.title}
+                                      </span>
+                                      
+                                      {/* 🌟 تغيير الزر لفتح النافذة المنبثقة إذا كان HTML 🌟 */}
+                                      {isHtmlFile ? (
+                                        <button 
+                                          onClick={(e) => { e.stopPropagation(); setActiveHtmlFile(mat.link); }}
+                                          style={{ 
+                                            background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.1)',
+                                            padding: '8px 20px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', 
+                                            transition: 'all 0.3s cubic-bezier(0.25, 1, 0.5, 1)', backdropFilter: 'blur(5px)'
+                                          }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#ff0844'; e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(255,255,255,0.2)'; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                        >
+                                         👁️
+                                        </button>
+                                      ) : (
+                                        <a href={finalLink} target="_blank" rel="noopener noreferrer" download 
+                                          style={{ 
+                                            background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', 
+                                            padding: '8px 20px', borderRadius: '20px', textDecoration: 'none', 
+                                            fontSize: '13px', fontWeight: 'bold', border: '1px solid rgba(255,255,255,0.1)',
+                                            transition: 'all 0.3s cubic-bezier(0.25, 1, 0.5, 1)', backdropFilter: 'blur(5px)'
+                                          }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#ff0844'; e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(255,255,255,0.2)'; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                        >
+                                          تنزيل
+                                        </a>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             ) : (
                               <div style={{ textAlign: 'center', padding: '20px 0', opacity: 0.5 }}>
@@ -289,6 +315,44 @@ export default function ExamScheduleStudent() {
           </div>
         </div>,
         document.body 
+      ) : null}
+
+      {/* 🌟 نافذة عرض ملفات الـ HTML داخل الموقع (Iframe Portal) 🌟 */}
+      {activeHtmlFile && typeof document !== 'undefined' ? createPortal(
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.9)', zIndex: 1000000, /* طبقة فوق جدول الامتحانات */
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(15px)', animation: 'modalEnter 0.4s ease'
+        }}>
+          
+          <button
+            onClick={() => setActiveHtmlFile(null)}
+            style={{
+              position: 'absolute', top: '20px', right: '20px', zIndex: 2,
+              background: 'rgba(255, 255, 255, 0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '30px', padding: '10px 25px', fontWeight: 'bold', fontSize: '14px',
+              cursor: 'pointer', transition: 'all 0.3s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#ff4444'; e.currentTarget.style.borderColor = '#ff4444'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}
+          >
+            إغلاق ✕
+          </button>
+          
+          <div style={{
+            width: '95%', height: '85%', borderRadius: '15px', overflow: 'hidden',
+            background: '#ffffff', boxShadow: '0 10px 40px rgba(0,0,0,0.6)', marginTop: '30px'
+          }}>
+            <iframe 
+              src={activeHtmlFile} 
+              width="100%" height="100%" 
+              style={{ border: 'none', backgroundColor: '#ffffff' }} 
+              title="Interactive Material"
+            />
+          </div>
+        </div>,
+        document.body
       ) : null}
     </>
   );

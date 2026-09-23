@@ -784,7 +784,7 @@ function StudentView() {
                     key={index} 
                     onClick={(e) => {
                       if (currentWeek !== index) {
-                        triggerThemeBurst(currentWeek, e); 
+                        triggerThemeBurst(currentWeek, e);
                         setCurrentWeek(index);
                         setSelectedDay(null);
                       }

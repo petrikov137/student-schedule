@@ -1,11 +1,15 @@
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import StudentView from './StudentView'
 import Admin from './Admin'
+import Login from './login' // 🌟 استيراد صفحة الدخول
 
 function App() {
   return (
     <HashRouter>
       <Routes>
+        {/* رابط صفحة تسجيل الدخول */}
+        <Route path="/login" element={<Login />} />
+
         {/* الرابط الرئيسي لصفحة الجدول */}
         <Route path="/" element={<StudentView />} />
         

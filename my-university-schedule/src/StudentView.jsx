@@ -1,11 +1,13 @@
 import Header from './Header';
 import ExamScheduleStudent from './ExamScheduleStudent'; // Temp
 import { useState, useEffect, useCallback, useRef } from 'react' 
-import { database } from './firebase'
+import { database, auth } from './firebase'
 import { ref, onValue } from 'firebase/database'
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
 import localforage from 'localforage'; 
 
-// --- 🎨 الأيقونات ---
+// --- 🎨 الأيقونات الأصلية ---
 const LectureIcon = () => (
   <svg width="18" height="18" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z" />
@@ -18,61 +20,44 @@ const LabIcon = () => (
   </svg>
 );
 
-const CompIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-    <path fillRule="evenodd" d="M2.25 5.25a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3V15a3 3 0 0 1-3 3h-3v.257c0 .597.237 1.17.659 1.591l.621.622a.75.75 0 0 1-.53 1.28h-9a.75.75 0 0 1-.53-1.28l.621-.622a2.25 2.25 0 0 0 .659-1.59V18h-3a3 3 0 0 1-3-3V5.25Zm1.5 0v7.5a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5v-7.5a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5Z" clipRule="evenodd" />
-  </svg>
-);
-
-const PaperIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-    <path fillRule="evenodd" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0 0 16.5 9h-1.875a1.875 1.875 0 0 1-1.875-1.875V5.25A3.75 3.75 0 0 0 9 1.5H5.625ZM7.5 15a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 7.5 15Zm.75 2.25a.75.75 0 0 0 0 1.5H12a.75.75 0 0 0 0-1.5H8.25Z" clipRule="evenodd" />
-    <path d="M12.971 1.816A5.23 5.23 0 0 1 14.25 5.25v1.875c0 .207.168.375.375.375H16.5a5.23 5.23 0 0 1 3.434 1.279 9.768 9.768 0 0 0-6.963-6.963Z" />
+const AssignmentIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="100%" height="100%">
+    <path d="M11.25 5.337c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.036 1.007-1.875 2.25-1.875S15 2.34 15 3.375c0 .369-.128.713-.349 1.003-.215.283-.401.604-.401.959 0 .332.278.598.61.578 1.91-.114 3.79-.342 5.632-.676a.75.75 0 0 1 .878.645 49.17 49.17 0 0 1 .376 5.452.657.657 0 0 1-.66.664c-.354 0-.675-.186-.958-.401a1.647 1.647 0 0 0-1.003-.349c-1.035 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401.31 0 .557.262.534.571a48.774 48.774 0 0 1-.595 4.845.75.75 0 0 1-.61.61c-1.82.317-3.673.533-5.555.642a.58.58 0 0 1-.611-.581c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.035-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959a.641.641 0 0 1-.658.643 49.118 49.118 0 0 1-4.708-.36.75.75 0 0 1-.645-.878c.293-1.614.504-3.257.629-4.924A.53.53 0 0 0 5.337 15c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.036 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.369 0 .713.128 1.003.349.283.215.604.401.959.401a.656.656 0 0 0 .659-.663 47.703 47.703 0 0 0-.31-4.82.75.75 0 0 1 .83-.832c1.343.155 2.703.254 4.077.294a.64.64 0 0 0 .657-.642Z" />
   </svg>
 );
 
 const ScheduleIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+  <svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor">
     <path d="M5.625 3.75a2.625 2.625 0 1 0 0 5.25h12.75a2.625 2.625 0 0 0 0-5.25H5.625ZM3.75 11.25a.75.75 0 0 0 0 1.5h16.5a.75.75 0 0 0 0-1.5H3.75ZM3 15.75a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75ZM3.75 18.75a.75.75 0 0 0 0 1.5h16.5a.75.75 0 0 0 0-1.5H3.75Z" />
   </svg>
 );
 
-const GlassIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" opacity="0.5" />
-    <line x1="3" y1="9" x2="21" y2="9" />
-    <line x1="9" y1="21" x2="9" y2="9" />
+// 🌟 الأيقونات الجديدة لشريط التنقل 🌟
+const SettingsIcon = () => (
+  <svg width="100%" height="100%" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
   </svg>
 );
 
-const MatrixIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00ff41" strokeWidth="2">
-    <polyline points="4 17 10 11 4 5" />
-    <line x1="12" y1="19" x2="20" y2="19" />
+const ProfileIcon = () => (
+  <svg width="100%" height="100%" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
   </svg>
 );
 
-/* ------------------------- */
-/* --- بداية أيقونة الثعلب --- */
-const FoxIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff8c00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="12 22 2 8 12 15 22 8 12 22" fill="#ff8c00" stroke="#ff8c00" opacity="0.9"/>
-    <polyline points="2 8 6 2 12 8 18 2 22 8" />
+const ThemeIcon = () => (
+  <svg width="100%" height="100%" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.495-6.496a3.75 3.75 0 000-5.303l-1.06-1.06a3.75 3.75 0 00-5.304 0l-6.495 6.495a3.75 3.75 0 000 5.304l1.06 1.06z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M14.5 6.5l3 3" />
   </svg>
 );
-/* --- نهاية أيقونة الثعلب --- */
-
-/* --- أيقونة الواجبات والتقارير --- */
-const AssignmentIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-    <path d="M11.25 5.337c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.036 1.007-1.875 2.25-1.875S15 2.34 15 3.375c0 .369-.128.713-.349 1.003-.215.283-.401.604-.401.959 0 .332.278.598.61.578 1.91-.114 3.79-.342 5.632-.676a.75.75 0 0 1 .878.645 49.17 49.17 0 0 1 .376 5.452.657.657 0 0 1-.66.664c-.354 0-.675-.186-.958-.401a1.647 1.647 0 0 0-1.003-.349c-1.035 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401.31 0 .557.262.534.571a48.774 48.774 0 0 1-.595 4.845.75.75 0 0 1-.61.61c-1.82.317-3.673.533-5.555.642a.58.58 0 0 1-.611-.581c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.035-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959a.641.641 0 0 1-.658.643 49.118 49.118 0 0 1-4.708-.36.75.75 0 0 1-.645-.878c.293-1.614.504-3.257.629-4.924A.53.53 0 0 0 5.337 15c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.036 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.369 0 .713.128 1.003.349.283.215.604.401.959.401a.656.656 0 0 0 .659-.663 47.703 47.703 0 0 0-.31-4.82.75.75 0 0 1 .83-.832c1.343.155 2.703.254 4.077.294a.64.64 0 0 0 .657-.642Z" />
-  </svg>
-);
-/* ------------------------- */
-
 // ------------------------------------------------------------------------------------------------------------------------
 
 function StudentView() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  
   const weeks = [
     "الأسبوع الأول", "الأسبوع الثاني", "الأسبوع الثالث", "الأسبوع الرابع", "الأسبوع الخامس",
     "الأسبوع السادس", "الأسبوع السابع", "الأسبوع الثامن", "الأسبوع التاسع", "الأسبوع العاشر",
@@ -93,16 +78,6 @@ function StudentView() {
     "اللغة الانكليزية",
     "SE | PowePoint Version",
   ];
-
-  // 🌟 القائمة الموحدة لأسماء المواد في قسم الواجبات والجدول
-  const scheduleSubjectsList = [
-    "البرمجة الكائنية", 
-    "هياكل البيانات 2", 
-    "هندسة البرمجيات",
-    "قواعد بيانات موزعة", 
-    "معمارية الحاسوب", 
-    "اللغة الانكليزية",
-  ];
   
   const [allScheduleData, setAllScheduleData] = useState({});
   const [materialsData, setMaterialsData] = useState({}); 
@@ -121,16 +96,54 @@ function StudentView() {
   const [bubbleBursts, setBubbleBursts] = useState([]);
 
   // --- نظام الثيمات ---
-  const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'ocean'); //////
-  const [showThemes, setShowThemes] = useState(false);
-  const [hoveredTheme, setHoveredTheme] = useState(null);
-  const [pressedTheme, setPressedTheme] = useState(null);
+  const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'ocean');
 
-  const themesBoxRef = useRef(null);
-
-  // 🌟 مفاتيح السيطرة على الضغط المطول 🌟
   const adminPressTimer = useRef(null);
   const [isLongPressActive, setIsLongPressActive] = useState(false);
+
+  // 🌟 نظام اكتشاف السكرول لإخفاء/إظهار الشريط السفلي 🌟
+  const [isNavVisible, setIsNavVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
+  // 🌟 بطاقات الثيمات الجديدة 🌟
+  const themeCards = [
+    { id: 'ocean', name: 'المحيط (Ocean)', color: '#0094f7', icon: '🌊' },
+    { id: 'twilight', name: 'الشفق (Twilight)', color: '#9333ea', icon: '🌌' },
+    { id: 'hearts', name: 'القلوب (Hearts)', color: '#f43f5e', icon: '❤️' },
+    { id: 'coffee', name: 'القهوة (Coffee)', color: '#d28c47', icon: '☕' },
+    { id: 'glass', name: 'الزجاج (Glass)', color: '#a8b2c1', icon: '🧊' },
+    { id: 'matrix', name: 'المصفوفة (Matrix)', color: '#00ff41', icon: '💻' },
+    { id: 'fox', name: 'الثعلب (Fox)', color: '#ff8c00', icon: '🦊' },
+  ];
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
+        setIsNavVisible(false); // سكرول للأسفل -> إخفاء
+      } else {
+        setIsNavVisible(true);  // سكرول للأعلى -> إظهار
+      }
+      lastScrollY.current = currentScrollY;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("خطأ في تسجيل الخروج:", error);
+    }
+  };
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -142,33 +155,14 @@ function StudentView() {
       else if (theme === 'coffee' || theme === 'coffee-light') metaThemeColor.setAttribute('content', '#f5ece5');
       else if (theme === 'ocean' || theme === 'ocean-light') metaThemeColor.setAttribute('content', '#0f2027');
       else if (theme === 'twilight' || theme === 'twilight-light') metaThemeColor.setAttribute('content', '#170f23');
-      /* ------------------------- */
-      /* --- لون الهاتف لثيم الثعلب --- */
       else if (theme === 'fox') metaThemeColor.setAttribute('content', '#5Dadec');
-      /* ------------------------- */
       else metaThemeColor.setAttribute('content', '#141414');
     }
   }, [theme]);
 
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (themesBoxRef.current && !themesBoxRef.current.contains(event.target)) {
-        setShowThemes(false);
-      }
-    }
-    
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("touchstart", handleClickOutside); 
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("touchstart", handleClickOutside);
-    };
-  }, []);
-
   const handleThemeSelect = (selectedTheme, e) => {
     if (e) e.stopPropagation(); 
     setTheme(selectedTheme);
-    setTimeout(() => setShowThemes(false), 250); 
   };
 
   const handleAdminSecretStart = (e) => {
@@ -188,14 +182,6 @@ function StudentView() {
   const handleAdminSecretEnd = () => {
     if (adminPressTimer.current) clearTimeout(adminPressTimer.current);
   };
-
-  const handleHeaderClick = () => {
-    if (!isLongPressActive) {
-      setShowThemes(!showThemes);
-    }
-  };
-
-  // ----------------------------------------------------------------------------------------------------------
 
   useEffect(() => {
     const cachedData = localStorage.getItem('offline_schedule_data');
@@ -241,7 +227,6 @@ function StudentView() {
 
   }, []);
 
-// 🌟 مستمع الإشعارات الفورية للطالب (محدث ليدعم هواتف الأندرويد ويمنع التكرار) 🌟
   useEffect(() => {
     const notifRef = ref(database, 'latest_notification');
     const unsubscribe = onValue(notifRef, (snapshot) => {
@@ -251,16 +236,9 @@ function StudentView() {
         
         if (!lastNotifTime || data.timestamp > parseInt(lastNotifTime)) {
           const isUserSubscribed = localStorage.getItem('fcm_subscribed') === 'true';
-          
-          // 🌟 الحل الجذري لمنع الإزعاج والتكرار:
-          // نحسب عمر الإشعار (الوقت الحالي ناقص وقت الإرسال من السيرفر)
-          // إذا كان أقل من دقيقة (60000 مللي ثانية)، نظهره. 
-          // إذا كان أقدم من دقيقة، يعني أن الطالب استلمه في الخلفية سابقاً، فنقوم بتحديث الوقت بصمت فقط.
           const notificationAge = Date.now() - data.timestamp;
           
           if (notificationAge < 60000 && Notification.permission === 'granted' && isUserSubscribed) {
-            
-            // 🌟: استخدام Service Worker لعرض الإشعار 🌟
             if ('serviceWorker' in navigator) {
               navigator.serviceWorker.ready.then((registration) => {
                 registration.showNotification(data.title, { 
@@ -271,12 +249,9 @@ function StudentView() {
                 });
               });
             } else {
-              // احتياطي للكمبيوتر القديم
               new Notification(data.title, { body: data.body, icon: '/pwa-192x192.png', dir: 'rtl' });
             }
-
           }
-          // تحديث الوقت المرجعي دائماً لكي لا يتكرر الفحص
           localStorage.setItem('last_notif_time', data.timestamp.toString());
         }
       }
@@ -284,14 +259,13 @@ function StudentView() {
     return () => unsubscribe();
   }, []); 
 
-
   const getDayDataHelper = (weekIdx, dayName) => {
     const weekKey = `week_${weekIdx}`;
     return allScheduleData[weekKey] && allScheduleData[weekKey][dayName] ? allScheduleData[weekKey][dayName] : null;
   }
 
   const hasNewUpdate = (day) => {
-    if (activeTab === 'materials' || activeTab === 'assignments') return false; 
+    if (activeTab === 'materials' || activeTab === 'assignments' || activeTab === 'themes' || activeTab === 'profile' || activeTab === 'settings') return false; 
     const dayData = getDayDataHelper(currentWeek, day);
     if (!dayData || !dayData.lastUpdated) return false;
 
@@ -343,7 +317,7 @@ function StudentView() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (activeTab === 'materials' || activeTab === 'assignments') return; 
+      if (activeTab !== 'schedule') return; 
 
       if (e.key === 'ArrowLeft') {
         triggerThemeBurst(currentWeek); 
@@ -421,7 +395,6 @@ function StudentView() {
     return allScheduleData[weekKey] && allScheduleData[weekKey][day] ? allScheduleData[weekKey][day] : null;
   }
 
-  // 🌟 تحديث دالة جلب التاريخ لتدعم أسابيع أخرى لحساب الواجبات 🌟
   const getDateForDay = (dayIndex, weekIndex = currentWeek) => {
     const startDate = new Date(2026, 1, 1); 
     const daysToAdd = (weekIndex * 7) + dayIndex;
@@ -438,7 +411,6 @@ function StudentView() {
     return url;
   };
 
-  // 🌟 معالجة بيانات قسم الواجبات والتقارير لتكون بطاقات منفصلة 🌟
   const getCountdown = (targetDate) => {
     const now = new Date();
     const target = new Date(targetDate);
@@ -446,8 +418,8 @@ function StudentView() {
     const diff = target.getTime() - now.getTime();
     const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
 
-    if (diff < 0) return { text: "انتهى", color: "#ef4444" }; // أحمر
-    if (diffDays === 0) return { text: "ينتهي اليوم", color: "#10b981" }; // أخضر
+    if (diff < 0) return { text: "انتهى", color: "#ef4444" }; 
+    if (diffDays === 0) return { text: "ينتهي اليوم", color: "#10b981" }; 
     if (diffDays === 1) return { text: "تبقى يوم", color: "#10b981" }; 
     if (diffDays === 2) return { text: "تبقى يومان", color: "#10b981" };
     if (diffDays <= 10) return { text: `تبقى ${diffDays} أيام`, color: "#10b981" }; 
@@ -485,10 +457,8 @@ function StudentView() {
     }
   }
 
-  // ترتيب الواجبات حسب الأقرب موعداً أولاً
   allAssignmentsList.sort((a, b) => a.targetDate - b.targetDate);
 
-  // 🌟 شاشة التحميل الاحترافية (9 مستطيلات تشكل حرف V) 🌟
   if (loading ) {
     const vBlocks = [
       { id: 1, top: 0, left: 0, delay: '0s' }, { id: 2, top: 18, left: 11, delay: '0.1s' },
@@ -499,7 +469,6 @@ function StudentView() {
     ];
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#000000', overflow: 'hidden', position: 'fixed', top: 0, left: 0, width: '100%', zIndex: 9999 }}>
-        {/* 🌟 التعديل هنا: التوسيط المطلق (Absolute Centering) 🌟 */}
         <div style={{ position: 'absolute', top: '50%', left: '50%', width: '124px', height: '86px', transform: 'translate(-50%, -50%) scale(1.2)' }}>
           {vBlocks.map(b => (
             <div key={b.id} style={{ position: 'absolute', top: `${b.top}px`, left: `${b.left}px` }}>
@@ -522,8 +491,10 @@ function StudentView() {
     return 'var(--primary-color)'; 
   };
 
+  const showBottomNav = isNavVisible && selectedDay === null;
+
   return (
-    <div className="main-container" style={{ width: '100%', maxWidth: '600px', margin: '0 auto', padding: '0 0px' }}>
+    <div className="main-container" style={{ width: '100%', maxWidth: '600px', margin: '0 auto', padding: '0 0px', paddingBottom: '90px' }}>
       
       <style>
         {`
@@ -600,10 +571,11 @@ function StudentView() {
         </div>
       ))}
       
-      <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} />  
+      {/* 🌟 الهيدر كما كان سابقاً (مع تعديل زر الثيمات) 🌟 */}
+      <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} /> 
       
       <h1 style={{ textAlign: 'center', color: 'var(--text-pure)', marginBottom: '20px', marginTop: '10px' }}>
-        {activeTab === 'schedule' ? 'الجدول الأسبوعي' : activeTab === 'materials' ? 'الملازم الدراسية' : 'الواجبات والتقارير'}
+        {activeTab === 'schedule' ? 'الجدول الأسبوعي' : activeTab === 'materials' ? 'الملازم الدراسية' : activeTab === 'assignments' ? 'الواجبات والتقارير' : activeTab === 'themes' ? 'المظهر والثيمات' : activeTab === 'settings' ? 'الإعدادات' : 'الملف الشخصي'}
       </h1>
 
       {/* ===================== قسم الجدول ===================== */}
@@ -612,7 +584,6 @@ function StudentView() {
           <div key={currentWeek} className="week-animate">
             <div 
               className="week-bar-box"
-              ref={themesBoxRef} 
               style={{ 
                 backgroundColor: 'var(--primary-color)', color: 'var(--text-pure)', borderRadius: '10px', marginBottom: '30px', height: '64px',
                 position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
@@ -620,7 +591,6 @@ function StudentView() {
               }}
             >
               <div 
-                onClick={handleHeaderClick}
                 onMouseDown={handleAdminSecretStart}
                 onMouseUp={handleAdminSecretEnd}
                 onMouseLeave={handleAdminSecretEnd}
@@ -628,63 +598,11 @@ function StudentView() {
                 onTouchEnd={handleAdminSecretEnd}
                 onContextMenu={(e) => e.preventDefault()} 
                 style={{
-                  position: 'absolute', width: '100%', height: '100%', cursor: 'pointer',
-                  transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
-                  transform: showThemes ? 'scale(0.3)' : 'scale(1)', 
-                  opacity: showThemes ? 0 : 1, 
-                  pointerEvents: showThemes ? 'none' : 'auto', 
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                  position: 'absolute', width: '100%', height: '100%', cursor: 'default',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}
               >
                 <h2 style={{ margin: 0, textAlign: 'center' }}>{weeks[currentWeek]}</h2>
-                <span style={{ opacity: 0.5, fontSize: '14px' }}> </span>
-              </div>
-
-              <div style={{
-                position: 'absolute', display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '15px', width: '100%', padding: '0 5px',
-                transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
-                transform: showThemes ? 'scale(1)' : 'scale(0.3)', 
-                opacity: showThemes ? 1 : 0, 
-                pointerEvents: showThemes ? 'auto' : 'none'
-              }}>
-                {[
-                  { id: 'glass', icon: <GlassIcon />, label: 'زجاج' }, 
-                  { id: 'matrix', icon: <MatrixIcon />, label: 'مصفوفة' },
-                  { id: 'fox', icon: <FoxIcon />, label: 'ثعلب' }
-                ].map((t) => {
-                  const isHovered = hoveredTheme === t.id;
-                  const isPressed = pressedTheme === t.id;
-                  let btnScale = 1;
-                  if (isPressed) { btnScale = 0.9; } else if (isHovered) { btnScale = 1.15; }
-
-                  return (
-                    <div 
-                      key={t.id} 
-                      onClick={(e) => { 
-                        handleThemeSelect(t.id, e); 
-                        setShowThemes(false); 
-                      }} 
-                      onMouseEnter={() => setHoveredTheme(t.id)}
-                      onMouseLeave={() => { setHoveredTheme(null); setPressedTheme(null); }}
-                      onMouseDown={() => setPressedTheme(t.id)}
-                      onMouseUp={() => setPressedTheme(null)}
-                      onTouchStart={() => setPressedTheme(t.id)}
-                      onTouchEnd={() => setPressedTheme(null)}
-
-                      style={{ 
-                        backgroundColor: theme === t.id ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)', 
-                        border: theme === t.id ? '1px solid rgba(255,255,255,0.8)' : '1px solid transparent', 
-                        padding: '8px 15px', borderRadius: '15px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
-                        zIndex: isHovered || isPressed ? 10 : 1,
-                        boxShadow: isHovered && !isPressed ? '0 8px 12px rgba(0,0,0,0.2)' : 'none',
-                        transition: 'background-color 0.3s ease, border 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease',
-                        transformOrigin: 'center center',
-                        transform: `scale(${btnScale})`, 
-                      }}>
-                      <span>{t.icon}</span><span>{t.label}</span>
-                    </div>
-                  )
-                })}
               </div>
             </div>
             
@@ -730,7 +648,6 @@ function StudentView() {
 
 {dayInfo.subjects.map((subj, idx) => {
   
-  // 🌟 التحقق إذا كان الحدث امتحان لتحديد لون النص فقط 🌟
   const isSpecificExam = subj.type === 'امتحان';
   let typeAndContentColor = isSpecificExam ? '#ff4444' : 'var(--text-details)';
   let eventTypeColor = isSpecificExam ? '#ff4444' : 'var(--text-details)';
@@ -754,7 +671,7 @@ function StudentView() {
     }}>
       
       <span style={{ 
-        color: eventTypeColor, // 🌟 أحمر لـ "امتحان"
+        color: eventTypeColor, 
         fontSize: '13px', 
         fontWeight: 'bold',
         display: 'flex', 
@@ -763,17 +680,19 @@ function StudentView() {
       }}>
         {eventType === 'محاضرة' && <LectureIcon />}
         {eventType === 'مختبر' && <LabIcon />}
-        {(eventType === 'واجب' || eventType === 'تقرير') && <AssignmentIcon />}
+        {(eventType === 'واجب' || eventType === 'تقرير') && (
+            <div style={{ width: '18px', height: '18px', display: 'flex' }}><AssignmentIcon /></div>
+        )}
         {eventType}
       </span>
       
       <span style={{ color: 'var(--text-pure)', fontSize: '18px', fontWeight: 'bold', marginTop: '2px' }}>
-        {subjectName} {/* 🌟 اسم المادة يبقى كما هو باللون الأصلي 🌟 */}
+        {subjectName}
       </span>
       
       {subj.content && (
         <span style={{ 
-          color: typeAndContentColor, // 🌟 أحمر للتفاصيل إذا كان امتحان
+          color: typeAndContentColor, 
           fontSize: '14px', 
           whiteSpace: 'pre-wrap', 
           marginTop: '4px', 
@@ -926,7 +845,7 @@ function StudentView() {
         </>
       )}
 
-      {/* ===================== قسم الملازم ===================== */}
+      {/* ===================== قسم الملازم (من الهيدر) ===================== */}
       {activeTab === 'materials' && (
         <div className="week-animate" style={{ paddingBottom: '30px' }}>
           <div style={{ WebkitTapHighlightColor: 'transparent', display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -1012,7 +931,7 @@ function StudentView() {
         </div>
       )}
 
-      {/* ===================== 🌟 قسم الواجبات والتقارير الجديد (بطاقات منفصلة وتفتح للأسفل) 🌟 ===================== */}
+      {/* ===================== قسم الواجبات والتقارير (من الهيدر) ===================== */}
       {activeTab === 'assignments' && (
         <div className="week-animate" style={{ paddingBottom: '30px' }}>
           <div style={{ WebkitTapHighlightColor: 'transparent', display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -1059,8 +978,6 @@ function StudentView() {
                       <div style={{ padding: '0 16px 16px 16px' }}>
                         <div style={{ color: 'var(--text-pure)', fontSize: '16px', whiteSpace: 'pre-wrap', lineHeight: '1.6', borderTop: '1px dashed var(--border-line)', paddingTop: '10px' }}>
                           {assign.content || 'لا توجد تفاصيل.'}
-                          {/* عرض الصورة إذا وجدت */}
-                              {/* عرض الصورة أو زر فتح المرفق */}
                           {assign.imageUrl && (
                             <div style={{ marginTop: '15px', borderTop: '1px dashed var(--border-line)', paddingTop: '15px', textAlign: 'center' }}>
                               <img 
@@ -1068,7 +985,7 @@ function StudentView() {
                                 alt="المرفق" 
                                 style={{ width: '100%', maxHeight: '300px', objectFit: 'contain', borderRadius: '8px', cursor: 'pointer', marginBottom: '10px' }} 
                                 onClick={(e) => { e.stopPropagation(); window.open(assign.imageUrl, '_blank'); }}
-                                onError={(e) => e.target.style.display = 'none'} // يخفي الصورة إذا لم تكن صالحة، لكن يترك الزر
+                                onError={(e) => e.target.style.display = 'none'} 
                               />
                               <a 
                                 href={assign.imageUrl} 
@@ -1101,7 +1018,187 @@ function StudentView() {
           </div>
         </div>
       )}
-                                 <ExamScheduleStudent/>  
+
+      {/* ===================== 🌟 قسم الثيمات الجديد 🌟 ===================== */}
+      {activeTab === 'themes' && (
+        <div className="week-animate" style={{ paddingBottom: '30px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {themeCards.map((t) => {
+              const isActive = theme === t.id || theme === `${t.id}-light` || (theme === 'hearts-dark' && t.id === 'hearts');
+              return (
+                <div 
+                  key={t.id} 
+                  onClick={() => setTheme(t.id)} 
+                  className="day-card schedule-day-box"
+                  style={{
+                    cursor: 'pointer',
+                    backgroundColor: isActive ? 'var(--card-bg-expanded)' : 'var(--card-bg-normal)',
+                    borderLeft: `5px solid ${t.color}`,
+                    boxShadow: isActive ? `0 0 10px ${t.color}40` : 'none',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '24px' }}>{t.icon}</span>
+                      <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-pure)' }}>{t.name}</h3>
+                    </div>
+                    {isActive && (
+                      <span style={{ color: t.color, fontWeight: 'bold', fontSize: '14px', backgroundColor: `${t.color}20`, padding: '4px 10px', borderRadius: '8px' }}>
+                        ✓ مفعل
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===================== 🌟 قسم الملف الشخصي الجديد 🌟 ===================== */}
+      {activeTab === 'profile' && (
+        <div className="week-animate" style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '30px' }}>
+          {!user ? (
+            <div className="day-card" style={{ backgroundColor: 'var(--card-bg-normal)', padding: '40px 20px', textAlign: 'center', borderRadius: '15px', border: '1px solid var(--border-line)' }}>
+              <div style={{ width: '80px', height: '80px', backgroundColor: 'var(--card-bg-locked)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', border: '1px solid var(--border-line)' }}>
+                <span style={{ fontSize: '40px' }}>👤</span>
+              </div>
+              <h2 style={{ color: 'var(--text-pure)', marginBottom: '10px' }}>حساب الطالب</h2>
+              <p style={{ color: 'var(--text-muted)', marginBottom: '30px', fontSize: '14px', lineHeight: '1.6' }}>
+                سجل دخولك الآن لإنشاء ملفك الشخصي والوصول إلى ميزات إضافية كالملاحظات المشفرة.
+              </p>
+              
+              <button 
+                onClick={() => navigate('/login')}
+                style={{ 
+                  backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '12px', padding: '14px 20px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '280px', margin: '0 auto', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', transition: 'transform 0.2s', WebkitTapHighlightColor: 'transparent'
+                }}
+                onMouseDown={(e) => e.target.style.transform = 'scale(0.95)'}
+                onMouseUp={(e) => e.target.style.transform = 'scale(1)'}
+              >
+                تسجيل الدخول للمتابعة
+              </button>
+            </div>
+          ) : (
+            <div className="day-card" style={{ backgroundColor: 'var(--card-bg-normal)', padding: '30px 20px', borderRadius: '15px', border: '1px solid var(--border-line)' }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
+                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
+                     {user.displayName ? user.displayName[0].toUpperCase() : '👤'}
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                     <h3 style={{ margin: 0, color: 'var(--text-pure)', fontSize: '20px' }}>{user.displayName || 'طالب'}</h3>
+                     <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>{user.email}</span>
+                  </div>
+               </div>
+               
+               <div style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}>
+                  <div style={{ flex: 1, backgroundColor: 'var(--card-bg-locked)', padding: '15px', borderRadius: '12px', textAlign: 'center', border: '1px solid var(--border-line)' }}>
+                     <span style={{ display: 'block', color: 'var(--primary-color)', fontSize: '22px', fontWeight: 'bold' }}>0</span>
+                     <span style={{ color: 'var(--text-details)', fontSize: '12px' }}>ملاحظات</span>
+                  </div>
+                  <div style={{ flex: 1, backgroundColor: 'var(--card-bg-locked)', padding: '15px', borderRadius: '12px', textAlign: 'center', border: '1px solid var(--border-line)' }}>
+                     <span style={{ display: 'block', color: 'var(--primary-color)', fontSize: '22px', fontWeight: 'bold' }}>0</span>
+                     <span style={{ color: 'var(--text-details)', fontSize: '12px' }}>مهام منجزة</span>
+                  </div>
+               </div>
+
+               <button 
+                 onClick={handleLogout}
+                 style={{ 
+                   backgroundColor: 'transparent', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '12px', padding: '12px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', width: '100%', transition: 'background-color 0.2s', WebkitTapHighlightColor: 'transparent'
+                 }}
+                 onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(239,68,68,0.1)'}
+                 onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+               >
+                 تسجيل الخروج
+               </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===================== قسم الإعدادات (مسودة) ===================== */}
+      {activeTab === 'settings' && (
+        <div className="week-animate" style={{ padding: '30px 20px', textAlign: 'center', backgroundColor: 'var(--card-bg-normal)', borderRadius: '15px', border: '1px solid var(--border-line)', marginTop: '20px' }}>
+          <h2 style={{ color: 'var(--text-pure)', marginBottom: '10px' }}>الإعدادات</h2>
+          <p style={{ color: 'var(--text-muted)' }}>سيتم إضافة خيارات (تغيير اللغة، اختيار القسم والمرحلة، الجداول السابقة) قريباً...</p>
+        </div>
+      )}
+
+      {/* 🌟 شريط التنقل السفلي العائم 🌟 */}
+      <div style={{
+        position: 'fixed',
+        bottom: showBottomNav ? '20px' : '-100px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 'calc(100% - 30px)',
+        maxWidth: '400px',
+        backgroundColor: 'var(--card-bg-locked)',
+        border: '1px solid var(--border-line)',
+        borderRadius: '24px',
+        padding: '10px 20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
+        transition: 'bottom 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+        zIndex: 1000,
+        backdropFilter: 'blur(15px)',
+        WebkitTapHighlightColor: 'transparent'
+      }}>
+        {[
+          { id: 'schedule', icon: <ScheduleIcon /> },
+          { id: 'themes', icon: <ThemeIcon /> },
+          { id: 'profile', icon: <ProfileIcon /> },
+          { id: 'settings', icon: <SettingsIcon /> }
+        ].map(item => {
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => {
+                setActiveTab(item.id);
+                if (item.id === 'schedule') setSelectedDay(null);
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: isActive ? 'var(--primary-color)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '8px',
+                transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                transform: isActive ? 'scale(1.15) translateY(-2px)' : 'scale(1) translateY(0)',
+                WebkitTapHighlightColor: 'transparent'
+              }}
+            >
+              <div style={{ 
+                width: '26px', 
+                height: '26px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                filter: isActive ? 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))' : 'none'
+              }}>
+                 {item.icon}
+              </div>
+              {isActive && (
+                <div style={{
+                  width: '4px', height: '4px', backgroundColor: 'var(--primary-color)',
+                  borderRadius: '50%', marginTop: '4px',
+                  boxShadow: '0 0 5px var(--primary-color)'
+                }}></div>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      <ExamScheduleStudent/>  
 
     </div>
   )

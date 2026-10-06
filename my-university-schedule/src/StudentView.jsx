@@ -2,10 +2,13 @@ import Header from './Header';
 import ExamScheduleStudent from './ExamScheduleStudent'; // Temp
 import { useState, useEffect, useCallback, useRef } from 'react' 
 import { database, auth } from './firebase'
-import { ref, onValue } from 'firebase/database'
+import { ref, onValue, set } from 'firebase/database'
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import localforage from 'localforage'; 
+import Settings from './Settings';
+import Profile from './Profile';
+
 
 // --- 🎨 الأيقونات الأصلية ---
 const LectureIcon = () => (
@@ -32,7 +35,6 @@ const ScheduleIcon = () => (
   </svg>
 );
 
-// 🌟 الأيقونات الجديدة لشريط التنقل 🌟
 const SettingsIcon = () => (
   <svg width="100%" height="100%" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -40,16 +42,22 @@ const SettingsIcon = () => (
   </svg>
 );
 
-const ProfileIcon = () => (
+const MaterialsIcon = () => (
   <svg width="100%" height="100%" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
   </svg>
 );
 
-const ThemeIcon = () => (
-  <svg width="100%" height="100%" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.495-6.496a3.75 3.75 0 000-5.303l-1.06-1.06a3.75 3.75 0 00-5.304 0l-6.495 6.495a3.75 3.75 0 000 5.304l1.06 1.06z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M14.5 6.5l3 3" />
+const CheckIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </svg>
+);
+
+const XIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
   </svg>
 );
 // ------------------------------------------------------------------------------------------------------------------------
@@ -79,8 +87,12 @@ function StudentView() {
     "SE | PowePoint Version",
   ];
   
+  // 🌟 حالات البيانات والأرشيف 🌟
   const [allScheduleData, setAllScheduleData] = useState({});
   const [materialsData, setMaterialsData] = useState({}); 
+  const [archivesList, setArchivesList] = useState([]); 
+  const [selectedArchive, setSelectedArchive] = useState(null); 
+  const [archiveData, setArchiveData] = useState(null); 
   const [loading, setLoading] = useState(true);
   
   const [currentWeek, setCurrentWeek] = useState(0); 
@@ -101,11 +113,18 @@ function StudentView() {
   const adminPressTimer = useRef(null);
   const [isLongPressActive, setIsLongPressActive] = useState(false);
 
-  // 🌟 نظام اكتشاف السكرول لإخفاء/إظهار الشريط السفلي 🌟
+  // --- نظام اكتشاف السكرول ---
   const [isNavVisible, setIsNavVisible] = useState(true);
   const lastScrollY = useRef(0);
 
-  // 🌟 بطاقات الثيمات الجديدة 🌟
+  // --- نظام الحضور والغياب ---
+  const [userAttendance, setUserAttendance] = useState({});
+  const [activeAttendanceMenu, setActiveAttendanceMenu] = useState(null);
+  const attendanceTimer = useRef(null);
+  const isEventLongPress = useRef(false);
+  const [studentToast, setStudentToast] = useState({ show: false, message: '', type: '' });
+
+  // 🌟 بطاقات الثيمات 🌟
   const themeCards = [
     { id: 'ocean', name: 'المحيط (Ocean)', color: '#0094f7', icon: '🌊' },
     { id: 'twilight', name: 'الشفق (Twilight)', color: '#9333ea', icon: '🌌' },
@@ -116,23 +135,55 @@ function StudentView() {
     { id: 'fox', name: 'الثعلب (Fox)', color: '#ff8c00', icon: '🦊' },
   ];
 
+  // 🌟 المتغيرات الديناميكية للبيانات 🌟
+  const activeScheduleData = selectedArchive && archiveData ? archiveData : allScheduleData;
+  const activeMaterialsData = selectedArchive && archiveData && archiveData.materials ? archiveData.materials : materialsData;
+
+  const showToast = (message, type = 'default') => {
+    setStudentToast({ show: true, message, type });
+    setTimeout(() => setStudentToast({ show: false, message: '', type: '' }), 3000);
+  };
+
+  // 🌟 تطبيق كلاس الخلفيات المتحركة عند بدء التحميل 🌟
+  useEffect(() => {
+    if (localStorage.getItem('app-bg-anim') === 'false') {
+      document.documentElement.classList.add('disable-bg-anim');
+    } else {
+      document.documentElement.classList.remove('disable-bg-anim');
+    }
+  }, []);
+
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
       if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
-        setIsNavVisible(false); // سكرول للأسفل -> إخفاء
+        setIsNavVisible(false);
       } else {
-        setIsNavVisible(true);  // سكرول للأعلى -> إظهار
+        setIsNavVisible(true);
       }
       lastScrollY.current = currentScrollY;
+      
+      if (activeAttendanceMenu !== null) setActiveAttendanceMenu(null);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [activeAttendanceMenu]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        const attRef = ref(database, `users/${currentUser.uid}/attendance`);
+        onValue(attRef, (snapshot) => {
+          if (snapshot.exists()) {
+            setUserAttendance(snapshot.val());
+          } else {
+            setUserAttendance({});
+          }
+        });
+      } else {
+        setUserAttendance({});
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -140,25 +191,50 @@ function StudentView() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      showToast("تم تسجيل الخروج بنجاح", "success");
     } catch (error) {
       console.error("خطأ في تسجيل الخروج:", error);
+      showToast("حدث خطأ أثناء تسجيل الخروج", "error");
     }
   };
 
+  // 🌟 تم إصلاح دالة useEffect لتعمل بشكل سليم مع جميع الثيمات 🌟
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('app-theme', theme);
 
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      if (theme === 'light') metaThemeColor.setAttribute('content', '#f5f7fa');
-      else if (theme === 'coffee' || theme === 'coffee-light') metaThemeColor.setAttribute('content', '#f5ece5');
-      else if (theme === 'ocean' || theme === 'ocean-light') metaThemeColor.setAttribute('content', '#0f2027');
-      else if (theme === 'twilight' || theme === 'twilight-light') metaThemeColor.setAttribute('content', '#170f23');
+      if (theme === 'light' || theme === 'hearts') metaThemeColor.setAttribute('content', '#f5f7fa');
+      else if (theme === 'coffee-light') metaThemeColor.setAttribute('content', '#f5ece5');
+      else if (theme === 'ocean-light') metaThemeColor.setAttribute('content', '#e0f2fe');
+      else if (theme === 'twilight-light') metaThemeColor.setAttribute('content', '#f3e8ff');
       else if (theme === 'fox') metaThemeColor.setAttribute('content', '#5Dadec');
+      else if (theme === 'ocean') metaThemeColor.setAttribute('content', '#0f2027');
+      else if (theme === 'twilight') metaThemeColor.setAttribute('content', '#170f23');
       else metaThemeColor.setAttribute('content', '#141414');
     }
   }, [theme]);
+  
+  // 🌟 دالة اختيار الثيم مع المحافظة على الوضع النهاري/الداكن 🌟
+  const handleThemeCardClick = (baseId) => {
+    // نتحقق إذا كان الوضع الحالي هو الوضع الفاتح
+    const isLightMode = theme.includes('-light') || theme === 'light' || theme === 'hearts';
+    
+    let finalTheme = baseId;
+    
+    // معالجة حالة القلوب الاستثنائية
+    if (baseId === 'hearts') {
+      finalTheme = isLightMode ? 'hearts' : 'hearts-dark';
+    } 
+    // معالجة الثيمات التي تدعم الوضعين
+    else if (['ocean', 'twilight', 'coffee'].includes(baseId)) {
+      finalTheme = isLightMode ? `${baseId}-light` : baseId;
+    }
+    // ثيمات الماتركس، الزجاج، والثعلب ستأخذ الـ baseId مباشرة لأنها لا تدعم الوضعين
+    
+    setTheme(finalTheme);
+  };
 
   const handleThemeSelect = (selectedTheme, e) => {
     if (e) e.stopPropagation(); 
@@ -169,7 +245,6 @@ function StudentView() {
     setIsLongPressActive(false);
     adminPressTimer.current = setTimeout(() => {
       setIsLongPressActive(true);
-      
       const currentUrl = window.location.href;
       if (currentUrl.includes('student-schedule')) {
           window.location.href = window.location.origin + '/student-schedule/#/admin';
@@ -181,6 +256,101 @@ function StudentView() {
 
   const handleAdminSecretEnd = () => {
     if (adminPressTimer.current) clearTimeout(adminPressTimer.current);
+  };
+
+  const handleEventPressStart = (eventId) => {
+    if (!user || selectedArchive !== null) return; 
+    isEventLongPress.current = false;
+    attendanceTimer.current = setTimeout(() => {
+      isEventLongPress.current = true;
+      setActiveAttendanceMenu(eventId);
+      if (navigator.vibrate) navigator.vibrate(50);
+    }, 500); 
+  };
+
+  const handleEventPressEnd = () => {
+    if (attendanceTimer.current) clearTimeout(attendanceTimer.current);
+  };
+
+  const handleEventClick = (e, day, isLocked) => {
+    if (!isEventLongPress.current) {
+      toggleDay(day, isLocked, e);
+    } else {
+      e.stopPropagation();
+      e.preventDefault();
+      isEventLongPress.current = false; 
+    }
+  };
+
+  const markAttendance = async (weekIdx, dayName, subjectIdx, status) => {
+    if (!user) return showToast("يجب تسجيل الدخول لاستخدام هذه الميزة!", "error");
+    if (selectedArchive !== null) return; 
+
+    try {
+      const dbRef = ref(database, `users/${user.uid}/attendance/week_${weekIdx}/${dayName}/${subjectIdx}`);
+      await set(dbRef, status);
+      setActiveAttendanceMenu(null);
+      if (navigator.vibrate) navigator.vibrate(50);
+    } catch (error) {
+      showToast("حدث خطأ أثناء الحفظ", "error");
+    }
+  };
+
+  const handleBulkAttendance = async (weekIdx, dayName, dayInfo, actionType) => {
+    if (!user) return showToast("يجب تسجيل الدخول!", "error");
+    if (selectedArchive !== null) return;
+    if (!dayInfo || !dayInfo.subjects) return;
+
+    const updates = {};
+    dayInfo.subjects.forEach((subj, idx) => {
+      const currentStatus = userAttendance[`week_${weekIdx}`]?.[dayName]?.[idx];
+      
+      if (actionType === 'all_present' || actionType === 'all_absent') {
+        updates[idx] = actionType === 'all_present' ? 'present' : 'absent';
+      } else if (actionType === 'rest_present' || actionType === 'rest_absent') {
+        if (!currentStatus) {
+          updates[idx] = actionType === 'rest_present' ? 'present' : 'absent';
+        } else {
+           updates[idx] = currentStatus; 
+        }
+      }
+    });
+
+    try {
+      const dbRef = ref(database, `users/${user.uid}/attendance/week_${weekIdx}/${dayName}`);
+      await set(dbRef, updates);
+      if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+    } catch (error) {
+      showToast("حدث خطأ في التسجيل الكلي", "error");
+    }
+  };
+
+  const getStudentStats = () => {
+    let present = 0;
+    let absent = 0;
+
+    if (!userAttendance || typeof userAttendance !== 'object') {
+      return { present, absent };
+    }
+
+    try {
+      Object.values(userAttendance).forEach(weekData => {
+        if (weekData && typeof weekData === 'object') {
+          Object.values(weekData).forEach(dayData => {
+            if (dayData && typeof dayData === 'object') {
+              Object.values(dayData).forEach(status => {
+                if (status === 'present') present++;
+                if (status === 'absent') absent++;
+              });
+            }
+          });
+        }
+      });
+    } catch (error) {
+      console.error("Error calculating stats:", error);
+    }
+
+    return { present, absent };
   };
 
   useEffect(() => {
@@ -205,6 +375,15 @@ function StudentView() {
       }
     });
 
+    const archivesRef = ref(database, 'archives');
+    onValue(archivesRef, (snapshot) => {
+       if (snapshot.exists()) {
+           setArchivesList(Object.keys(snapshot.val()));
+       } else {
+           setArchivesList([]);
+       }
+    });
+
     const calculateCurrentWeek = () => {
       const calculationStartDate = new Date(2026, 0, 30);
       calculationStartDate.setHours(12, 0, 0, 0);
@@ -224,8 +403,24 @@ function StudentView() {
     };
 
     calculateCurrentWeek();
-
   }, []);
+
+  useEffect(() => {
+    if (selectedArchive) {
+       setLoading(true);
+       const specificArchiveRef = ref(database, `archives/${selectedArchive}`);
+       onValue(specificArchiveRef, (snapshot) => {
+           if (snapshot.exists()) {
+               setArchiveData(snapshot.val());
+           } else {
+               setArchiveData(null);
+           }
+           setLoading(false);
+       });
+    } else {
+       setArchiveData(null);
+    }
+  }, [selectedArchive]);
 
   useEffect(() => {
     const notifRef = ref(database, 'latest_notification');
@@ -261,11 +456,12 @@ function StudentView() {
 
   const getDayDataHelper = (weekIdx, dayName) => {
     const weekKey = `week_${weekIdx}`;
-    return allScheduleData[weekKey] && allScheduleData[weekKey][dayName] ? allScheduleData[weekKey][dayName] : null;
+    return activeScheduleData[weekKey] && activeScheduleData[weekKey][dayName] ? activeScheduleData[weekKey][dayName] : null;
   }
 
   const hasNewUpdate = (day) => {
     if (activeTab === 'materials' || activeTab === 'assignments' || activeTab === 'themes' || activeTab === 'profile' || activeTab === 'settings') return false; 
+    if (selectedArchive !== null) return false; 
     const dayData = getDayDataHelper(currentWeek, day);
     if (!dayData || !dayData.lastUpdated) return false;
 
@@ -277,6 +473,9 @@ function StudentView() {
   };
 
   const triggerThemeBurst = useCallback((weekIndexToBurst, e = null) => {
+    // 🌟 التأكد من تفعيل التفاعلات الجمالية 🌟
+    if (localStorage.getItem('app-interactive-anim') === 'false') return;
+    
     const isOceanTheme = theme === 'ocean' || theme === 'ocean-light';
     
     if (isOceanTheme) {
@@ -368,8 +567,9 @@ function StudentView() {
         localStorage.setItem(storageKey, Date.now().toString());
         setForceRender(prev => prev + 1); 
 
-        const isHeartsTheme = theme === 'hearts' || theme === 'hearts-dark';
-        if (isHeartsTheme && e) {
+        const isHeartsTheme = theme.startsWith('hearts');
+        // 🌟 التأكد من تفعيل التفاعلات الجمالية 🌟
+        if (isHeartsTheme && e && localStorage.getItem('app-interactive-anim') !== 'false') {
           let clientX = e.clientX;
           let clientY = e.clientY;
           if (clientX === undefined && e.changedTouches && e.changedTouches.length > 0) {
@@ -392,7 +592,7 @@ function StudentView() {
 
   const getDayData = (day) => {
     const weekKey = `week_${currentWeek}`;
-    return allScheduleData[weekKey] && allScheduleData[weekKey][day] ? allScheduleData[weekKey][day] : null;
+    return activeScheduleData[weekKey] && activeScheduleData[weekKey][day] ? activeScheduleData[weekKey][day] : null;
   }
 
   const getDateForDay = (dayIndex, weekIndex = currentWeek) => {
@@ -430,9 +630,9 @@ function StudentView() {
 
   for (let w = 0; w < 15; w++) {
     const weekKey = `week_${w}`;
-    if (allScheduleData[weekKey]) {
+    if (activeScheduleData[weekKey]) {
       days.forEach((day, dIdx) => {
-        const dayData = allScheduleData[weekKey][day];
+        const dayData = activeScheduleData[weekKey][day];
         if (dayData && Array.isArray(dayData.subjects)) {
           dayData.subjects.forEach(subj => {
             if (subj.type === "واجب" || subj.type === "تقرير") {
@@ -476,11 +676,6 @@ function StudentView() {
             </div>
           ))}
         </div>
-        <style>{`
-          .v-logo-block { width: 36px; height: 14px; background-color: var(--primary-color, #0094f7); border-radius: 3px; transform: skewX(-24deg); box-shadow: 0 0 10px var(--primary-color, #0094f7); animation: v-energy-flow 1.5s ease-in-out infinite; }
-          @keyframes v-energy-flow { 0%, 100% { transform: skewX(-24deg) translateY(0) scale(1); filter: brightness(1); opacity: 0.7; } 50% { transform: skewX(-24deg) translateY(-6px) scale(1.15); filter: brightness(1.6); box-shadow: 0 0 25px var(--primary-color, #0094f7); opacity: 1; } }
-          body { transition: background-color 0.5s ease; }
-        `}</style>
       </div>
     );
   }
@@ -492,10 +687,35 @@ function StudentView() {
   };
 
   const showBottomNav = isNavVisible && selectedDay === null;
+  const { present: totalPresent, absent: totalAbsent } = getStudentStats();
+
+   // 🌟 الكود الجديد: قراءة حالة زر إخفاء التفاصيل من الإعدادات 🌟
+  const hideDetails = localStorage.getItem('app-hide-details') === 'true';
 
   return (
-    <div className="main-container" style={{ width: '100%', maxWidth: '600px', margin: '0 auto', padding: '0 0px', paddingBottom: '90px' }}>
+    <div className="main-container" style={{ width: '100%', maxWidth: '600px', margin: '0 auto', padding: '0 0px', paddingBottom: '100px' }}>
       
+      {/* 🌟 Toast Notification للطالب 🌟 */}
+      <div style={{
+        position: 'fixed',
+        top: studentToast.show ? '20px' : '-100px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        backgroundColor: studentToast.type === 'error' ? '#ef4444' : 'var(--card-bg-expanded)',
+        color: '#fff',
+        padding: '12px 24px',
+        borderRadius: '30px',
+        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+        zIndex: 9999,
+        fontWeight: 'bold',
+        fontSize: '14px',
+        transition: 'top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+        pointerEvents: 'none',
+        whiteSpace: 'nowrap'
+      }}>
+        {studentToast.message}
+      </div>
+
       <style>
         {`
           @keyframes flyOutBurst {
@@ -536,6 +756,13 @@ function StudentView() {
           .bd-4 { width: 5px; height: 5px; --tx: 15px; --ty: 15px; }
           .bd-5 { width: 3px; height: 3px; --tx: 0px; --ty: -25px; }
 
+          @keyframes hintFadeStatic {
+            0% { opacity: 0; }
+            15% { opacity: 1; }
+            85% { opacity: 1; }
+            100% { opacity: 0; }
+          }
+
           @media screen and (max-width: 400px) {
             .main-container {
               zoom: 0.89; 
@@ -571,9 +798,15 @@ function StudentView() {
         </div>
       ))}
       
-      {/* 🌟 الهيدر كما كان سابقاً (مع تعديل زر الثيمات) 🌟 */}
       <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} /> 
       
+      {/* 🌟 تنبيه عرض الأرشيف 🌟 */}
+      {selectedArchive && (
+         <div style={{ backgroundColor: 'rgba(255, 152, 0, 0.1)', color: '#ff9800', padding: '12px', textAlign: 'center', borderRadius: '12px', margin: '15px 15px 0 15px', fontWeight: 'bold', fontSize: '14px', border: '1px solid rgba(255, 152, 0, 0.3)' }}>
+           ⚠️ أنت تتصفح أرشيف سنة ({selectedArchive}). ميزات الحضور معطلة.
+         </div>
+      )}
+
       <h1 style={{ textAlign: 'center', color: 'var(--text-pure)', marginBottom: '20px', marginTop: '10px' }}>
         {activeTab === 'schedule' ? 'الجدول الأسبوعي' : activeTab === 'materials' ? 'الملازم الدراسية' : activeTab === 'assignments' ? 'الواجبات والتقارير' : activeTab === 'themes' ? 'المظهر والثيمات' : activeTab === 'settings' ? 'الإعدادات' : 'الملف الشخصي'}
       </h1>
@@ -618,10 +851,23 @@ function StudentView() {
                 const statusColor = getStatusColor(isExam);
                 const showNotification = hasNewUpdate(day) && !isExpanded && !isLocked;
 
+                let dayAttendance = {};
+                let markedCount = 0;
+                let presentCount = 0;
+                let absentCount = 0;
+                let totalSubjects = 0;
+
+                if (isExpanded && dayInfo && dayInfo.subjects && user && selectedArchive === null) {
+                  dayAttendance = userAttendance[`week_${currentWeek}`]?.[day] || {};
+                  totalSubjects = dayInfo.subjects.length;
+                  markedCount = Object.keys(dayAttendance).length;
+                  presentCount = Object.values(dayAttendance).filter(v => v === 'present').length;
+                  absentCount = Object.values(dayAttendance).filter(v => v === 'absent').length;
+                }
+
                 return (
                   <div 
                     key={index} 
-                    onClick={(e) => toggleDay(day, isLocked, e)} 
                     className={`day-card ${isExpanded ? 'expanded' : ''} schedule-day-box`}
                     style={{
                       opacity: isLocked ? 0.6 : 1, cursor: isLocked ? 'default' : 'pointer',
@@ -632,7 +878,7 @@ function StudentView() {
                       borderLeft: isLocked ? '5px solid var(--dot-bg)' : `5px solid ${statusColor}`
                     }}
                   >
-                    <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px' }}>
+                    <div onClick={(e) => toggleDay(day, isLocked, e)} style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px' }}>
                       <h3 style={{ margin: 0, fontSize: '18px', color: isLocked ? 'var(--text-muted)' : 'var(--text-pure)' }}>
                         {day} {isExam && !isLocked && !isExpanded ? '!!' : ''}
                       </h3>
@@ -640,8 +886,19 @@ function StudentView() {
                     </div>
                     
                     <div style={{ maxHeight: isExpanded ? '2000px' : '0px', opacity: isExpanded ? 1 : 0, transition: isExpanded ? 'max-height 1.3s ease, opacity 0.7s ease' : 'all 0.5s ease', borderTop: isExpanded ? '1px solid var(--border-line)' : 'none' }}>
-                      <div style={{ padding: '15px 0 20px 0' }}>
+                      <div style={{ padding: '15px 0 20px 0', position: 'relative' }}>
                         
+                        {/* 🌟 النص الإرشادي (لا يظهر في الأرشيف) 🌟 */}
+                        {isExpanded && dayInfo && Array.isArray(dayInfo.subjects) && dayInfo.subjects.length > 0 && selectedArchive === null && (
+                          <div style={{
+                            position: 'absolute', top: '0px', width: '100%', textAlign: 'center',
+                            fontSize: '12px', color: 'var(--primary-color)',
+                            animation: 'hintFadeStatic 3s forwards', pointerEvents: 'none', fontWeight: 'normal'
+                          }}>
+                            {user ? "اضغط مطولاً لتسجيل الحضور" : "يتطلب تسجيل الدخول لتسجيل الحضور"}
+                          </div>
+                        )}
+
                         <div style={{ margin: '10px 0' }}>
                           {dayInfo && Array.isArray(dayInfo.subjects) ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -655,76 +912,151 @@ function StudentView() {
   const eventType = subj.type || 'محاضرة';
   const subjectName = subj.name || 'مادة سابقة';
 
+  const currentEventId = `event-${currentWeek}-${day}-${idx}`;
+  const isMenuOpen = activeAttendanceMenu === currentEventId;
+  const eventStatus = selectedArchive === null ? userAttendance[`week_${currentWeek}`]?.[day]?.[idx] : null; 
+
   return (
     <div key={idx} 
     className="subject-inner-card"
+    onClick={(e) => handleEventClick(e, day, isLocked)}
+    onMouseDown={(e) => handleEventPressStart(currentEventId)}
+    onMouseUp={handleEventPressEnd}
+    onMouseLeave={handleEventPressEnd}
+    onTouchStart={(e) => handleEventPressStart(currentEventId)}
+    onTouchEnd={handleEventPressEnd}
+    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
     style={{ 
       backgroundColor: 'var(--card-bg-locked)', 
       borderRadius: '12px',
-      padding: '16px',
       display: 'flex',
       flexDirection: 'column', 
-      gap: '4px',
       textAlign: 'right',
       borderRight: `4px solid ${isSpecificExam ? '#ff4444' : 'var(--text-muted)'}`,
-      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+      position: 'relative',
+      overflow: 'hidden',
+      userSelect: 'none',
+      boxSizing: 'border-box' 
     }}>
       
-      <span style={{ 
-        color: eventTypeColor, 
-        fontSize: '13px', 
-        fontWeight: 'bold',
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '6px' 
-      }}>
-        {eventType === 'محاضرة' && <LectureIcon />}
-        {eventType === 'مختبر' && <LabIcon />}
-        {(eventType === 'واجب' || eventType === 'تقرير') && (
-            <div style={{ width: '18px', height: '18px', display: 'flex' }}><AssignmentIcon /></div>
-        )}
-        {eventType}
-      </span>
-      
-      <span style={{ color: 'var(--text-pure)', fontSize: '18px', fontWeight: 'bold', marginTop: '2px' }}>
-        {subjectName}
-      </span>
-      
-      {subj.content && (
-        <span style={{ 
-          color: typeAndContentColor, 
-          fontSize: '14px', 
-          whiteSpace: 'pre-wrap', 
-          marginTop: '4px', 
-          lineHeight: '1.6' 
+      {/* 🌟 خيارات الحضور (معطلة في الأرشيف) 🌟 */}
+      {selectedArchive === null && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '15px',
+          padding: '0 15px',
+          boxSizing: 'border-box', 
+          zIndex: 10,
+          transform: isMenuOpen ? 'scale(1)' : 'scale(0.9)',
+          opacity: isMenuOpen ? 1 : 0,
+          pointerEvents: isMenuOpen ? 'auto' : 'none',
+          transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          backgroundColor: 'rgba(128, 128, 128, 0.1)',
+          borderRadius: '12px'
         }}>
-          {subj.content}
-        </span>
+          <button 
+            onClick={(e) => { e.stopPropagation(); markAttendance(currentWeek, day, idx, 'present'); }}
+            style={{ flex: 1, height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#10b981', borderRadius: '10px', fontWeight: 'bold', fontSize: '14px', transition: 'all 0.2s', WebkitTapHighlightColor: 'transparent' }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.3)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.15)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+            onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
+            onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            حضور <CheckIcon />
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); markAttendance(currentWeek, day, idx, 'absent'); }}
+            style={{ flex: 1, height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444', borderRadius: '10px', fontWeight: 'bold', fontSize: '14px', transition: 'all 0.2s', WebkitTapHighlightColor: 'transparent' }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.3)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+            onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
+            onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            غياب <XIcon />
+          </button>
+        </div>
       )}
 
-      {subj.imageUrl && (
-        <div style={{ marginTop: '10px' }}>
-          <a 
-            href={subj.imageUrl} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            style={{ 
-              display: 'inline-block', 
-              backgroundColor: 'var(--primary-color)', 
-              color: 'white', 
-              padding: '6px 16px', 
-              borderRadius: '6px', 
-              textDecoration: 'none', 
-              fontSize: '12px', 
-              fontWeight: 'bold', 
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)' 
-            }}
-          >
-               عرض  
-          </a>
-        </div>
-      )} 
+      <div style={{
+        padding: '16px',
+        opacity: isMenuOpen ? 0 : 1,
+        transform: isMenuOpen ? 'scale(0.95)' : 'scale(1)',
+        transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px'
+      }}>
+        <span style={{ 
+          color: eventTypeColor, 
+          fontSize: '13px', 
+          fontWeight: 'bold',
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '6px' 
+        }}>
+          {eventType === 'محاضرة' && <LectureIcon />}
+          {eventType === 'مختبر' && <LabIcon />}
+          {(eventType === 'واجب' || eventType === 'تقرير') && (
+              <div style={{ width: '18px', height: '18px', display: 'flex' }}><AssignmentIcon /></div>
+          )}
+          {eventType}
+
+          {eventStatus === 'present' && <span style={{ color: '#10b981', display: 'flex' }}><CheckIcon /></span>}
+          {eventStatus === 'absent' && <span style={{ color: '#ef4444', display: 'flex' }}><XIcon /></span>}
+        </span>
+        
+        <span style={{ color: 'var(--text-pure)', fontSize: '18px', fontWeight: 'bold', marginTop: '2px' }}>
+          {subjectName}
+        </span>
+        
+        {/*  تم إضافة شرط !hideDetails لإخفاء النص عند تفعيل الزر في الإعدادات  */}
+        {subj.content && !hideDetails && (
+          <span style={{ 
+            color: typeAndContentColor, 
+            fontSize: '14px', 
+            whiteSpace: 'pre-wrap', 
+            marginTop: '4px', 
+            lineHeight: '1.6' 
+          }}>
+            {subj.content}
+          </span>
+        )}
+
+        {subj.imageUrl && (
+          <div style={{ marginTop: '10px' }}>
+            <a 
+              href={subj.imageUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{ 
+                display: 'inline-block', 
+                backgroundColor: 'var(--primary-color)', 
+                color: 'white', 
+                padding: '6px 16px', 
+                borderRadius: '6px', 
+                textDecoration: 'none', 
+                fontSize: '12px', 
+                fontWeight: 'bold', 
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)' 
+              }}
+            >
+                 عرض  
+            </a>
+          </div>
+        )} 
+      </div>
     </div>
   )
 })}
@@ -734,6 +1066,27 @@ function StudentView() {
 
                         <p style={{ margin: '20px 0 10px 0', fontSize: '18px', whiteSpace: 'pre-wrap', borderTop: '1px dashed var(--border-line)', paddingTop: '10px', color: 'var(--text-pure)' }}>
                         </p>
+                        
+                        {/* 🌟 أزرار التحكم الكلي (لا تظهر في الأرشيف) 🌟 */}
+                        {user && selectedArchive === null && isExpanded && dayInfo && Array.isArray(dayInfo.subjects) && dayInfo.subjects.length > 0 && (
+                          <div style={{ display: 'flex', gap: '10px', marginTop: '15px', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
+                            {markedCount === 0 ? (
+                              <>
+                                <button onClick={(e) => { e.stopPropagation(); handleBulkAttendance(currentWeek, day, dayInfo, 'all_present'); }} style={{ flex: 1, backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 'bold' }}>حضور كلي</button>
+                                <button onClick={(e) => { e.stopPropagation(); handleBulkAttendance(currentWeek, day, dayInfo, 'all_absent'); }} style={{ flex: 1, backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 'bold' }}>غياب كلي</button>
+                              </>
+                            ) : markedCount < totalSubjects ? (
+                              presentCount >= absentCount ? (
+                                <button onClick={(e) => { e.stopPropagation(); handleBulkAttendance(currentWeek, day, dayInfo, 'rest_absent'); }} style={{ width: '100%', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold' }}>تسجيل الباقي غياب</button>
+                              ) : (
+                                <button onClick={(e) => { e.stopPropagation(); handleBulkAttendance(currentWeek, day, dayInfo, 'rest_present'); }} style={{ width: '100%', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '10px', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold' }}>تسجيل الباقي حضور</button>
+                              )
+                            ) : (
+                              <div style={{ width: '100%', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', padding: '5px' }}>اكتمل تسجيل هذا اليوم ✨</div>
+                            )}
+                          </div>
+                        )}
+
                       </div>
                     </div>
                   </div>
@@ -745,7 +1098,7 @@ function StudentView() {
           <div style={{ marginTop: '40px', paddingBottom: '20px' }}>
             <div className="dots-container nav-dots-container" onMouseLeave={() => setHoveredWeek(null)} style={{ 
               WebkitTapHighlightColor: 'transparent', display: 'flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'nowrap', 
-              gap: (theme === 'hearts' || theme === 'hearts-dark') ? 'clamp(1px, 0.5vw, 4px)' : 'clamp(2px, 1.5vw, 8px)', 
+              gap: theme.startsWith('hearts') ? 'clamp(1px, 0.5vw, 4px)' : 'clamp(2px, 1.5vw, 8px)', 
               marginBottom: '20px', width: '100%' 
             }}>
               {weeks.map((_, index) => {
@@ -756,7 +1109,7 @@ function StudentView() {
                   else if (Math.abs(index - hoveredWeek) === 2) { scale = 1.1; transitionDelay = '0.1s'; opacity = 1; }
                 } else { if (index === currentWeek) { scale = 1.5; opacity = 1; } }
 
-                const isHeartsTheme = theme === 'hearts' || theme === 'hearts-dark';
+                const isHeartsTheme = theme.startsWith('hearts');
                 const isOceanTheme = theme === 'ocean' || theme === 'ocean-light'; 
                 
                 const size = isHeartsTheme ? '16px' : '10px'; 
@@ -845,14 +1198,14 @@ function StudentView() {
         </>
       )}
 
-      {/* ===================== قسم الملازم (من الهيدر) ===================== */}
+      {/* ===================== قسم الملازم ===================== */}
       {activeTab === 'materials' && (
         <div className="week-animate" style={{ paddingBottom: '30px' }}>
           <div style={{ WebkitTapHighlightColor: 'transparent', display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {availableSubjects.map((subject, index) => {
               const isExpanded = selectedSubject === subject;
               
-              const subjectMaterialsRaw = materialsData[subject];
+              const subjectMaterialsRaw = activeMaterialsData[subject];
               const subjectMaterials = Array.isArray(subjectMaterialsRaw) 
                 ? subjectMaterialsRaw.filter(Boolean) 
                 : Object.values(subjectMaterialsRaw || {}).filter(Boolean);
@@ -931,7 +1284,7 @@ function StudentView() {
         </div>
       )}
 
-      {/* ===================== قسم الواجبات والتقارير (من الهيدر) ===================== */}
+      {/* ===================== قسم الواجبات والتقارير ===================== */}
       {activeTab === 'assignments' && (
         <div className="week-animate" style={{ paddingBottom: '30px' }}>
           <div style={{ WebkitTapHighlightColor: 'transparent', display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -1019,16 +1372,16 @@ function StudentView() {
         </div>
       )}
 
-      {/* ===================== 🌟 قسم الثيمات الجديد 🌟 ===================== */}
+      {/* ===================== قسم الثيمات ===================== */}
       {activeTab === 'themes' && (
         <div className="week-animate" style={{ paddingBottom: '30px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {themeCards.map((t) => {
-              const isActive = theme === t.id || theme === `${t.id}-light` || (theme === 'hearts-dark' && t.id === 'hearts');
+              const isActive = theme.startsWith(t.id);
               return (
                 <div 
                   key={t.id} 
-                  onClick={() => setTheme(t.id)} 
+                  onClick={() => handleThemeCardClick(t.id)} 
                   className="day-card schedule-day-box"
                   style={{
                     cursor: 'pointer',
@@ -1056,102 +1409,59 @@ function StudentView() {
         </div>
       )}
 
-      {/* ===================== 🌟 قسم الملف الشخصي الجديد 🌟 ===================== */}
+      {/* ===================== قسم الملف الشخصي ===================== */}
       {activeTab === 'profile' && (
-        <div className="week-animate" style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '30px' }}>
-          {!user ? (
-            <div className="day-card" style={{ backgroundColor: 'var(--card-bg-normal)', padding: '40px 20px', textAlign: 'center', borderRadius: '15px', border: '1px solid var(--border-line)' }}>
-              <div style={{ width: '80px', height: '80px', backgroundColor: 'var(--card-bg-locked)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', border: '1px solid var(--border-line)' }}>
-                <span style={{ fontSize: '40px' }}>👤</span>
-              </div>
-              <h2 style={{ color: 'var(--text-pure)', marginBottom: '10px' }}>حساب الطالب</h2>
-              <p style={{ color: 'var(--text-muted)', marginBottom: '30px', fontSize: '14px', lineHeight: '1.6' }}>
-                سجل دخولك الآن لإنشاء ملفك الشخصي والوصول إلى ميزات إضافية كالملاحظات المشفرة.
-              </p>
-              
-              <button 
-                onClick={() => navigate('/login')}
-                style={{ 
-                  backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '12px', padding: '14px 20px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '280px', margin: '0 auto', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', transition: 'transform 0.2s', WebkitTapHighlightColor: 'transparent'
-                }}
-                onMouseDown={(e) => e.target.style.transform = 'scale(0.95)'}
-                onMouseUp={(e) => e.target.style.transform = 'scale(1)'}
-              >
-                تسجيل الدخول للمتابعة
-              </button>
-            </div>
-          ) : (
-            <div className="day-card" style={{ backgroundColor: 'var(--card-bg-normal)', padding: '30px 20px', borderRadius: '15px', border: '1px solid var(--border-line)' }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
-                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
-                     {user.displayName ? user.displayName[0].toUpperCase() : '👤'}
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                     <h3 style={{ margin: 0, color: 'var(--text-pure)', fontSize: '20px' }}>{user.displayName || 'طالب'}</h3>
-                     <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>{user.email}</span>
-                  </div>
-               </div>
-               
-               <div style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}>
-                  <div style={{ flex: 1, backgroundColor: 'var(--card-bg-locked)', padding: '15px', borderRadius: '12px', textAlign: 'center', border: '1px solid var(--border-line)' }}>
-                     <span style={{ display: 'block', color: 'var(--primary-color)', fontSize: '22px', fontWeight: 'bold' }}>0</span>
-                     <span style={{ color: 'var(--text-details)', fontSize: '12px' }}>ملاحظات</span>
-                  </div>
-                  <div style={{ flex: 1, backgroundColor: 'var(--card-bg-locked)', padding: '15px', borderRadius: '12px', textAlign: 'center', border: '1px solid var(--border-line)' }}>
-                     <span style={{ display: 'block', color: 'var(--primary-color)', fontSize: '22px', fontWeight: 'bold' }}>0</span>
-                     <span style={{ color: 'var(--text-details)', fontSize: '12px' }}>مهام منجزة</span>
-                  </div>
-               </div>
-
-               <button 
-                 onClick={handleLogout}
-                 style={{ 
-                   backgroundColor: 'transparent', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '12px', padding: '12px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', width: '100%', transition: 'background-color 0.2s', WebkitTapHighlightColor: 'transparent'
-                 }}
-                 onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(239,68,68,0.1)'}
-                 onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-               >
-                 تسجيل الخروج
-               </button>
-            </div>
-          )}
-        </div>
+        <Profile 
+          user={user} 
+          navigate={navigate} 
+          totalPresent={totalPresent} 
+          totalAbsent={totalAbsent} 
+          handleLogout={handleLogout}
+          userAttendance={userAttendance}
+          allScheduleData={allScheduleData}
+        />
       )}
 
-      {/* ===================== قسم الإعدادات (مسودة) ===================== */}
+      {/* ===================== قسم الإعدادات ===================== */}
       {activeTab === 'settings' && (
-        <div className="week-animate" style={{ padding: '30px 20px', textAlign: 'center', backgroundColor: 'var(--card-bg-normal)', borderRadius: '15px', border: '1px solid var(--border-line)', marginTop: '20px' }}>
-          <h2 style={{ color: 'var(--text-pure)', marginBottom: '10px' }}>الإعدادات</h2>
-          <p style={{ color: 'var(--text-muted)' }}>سيتم إضافة خيارات (تغيير اللغة، اختيار القسم والمرحلة، الجداول السابقة) قريباً...</p>
-        </div>
+        <Settings 
+           user={user} 
+           handleLogout={handleLogout} 
+           archivesList={archivesList} 
+           selectedArchive={selectedArchive} 
+           setSelectedArchive={setSelectedArchive} 
+           showToast={showToast} 
+           currentTheme={theme} 
+           setTheme={setTheme} 
+        />
       )}
 
-      {/* 🌟 شريط التنقل السفلي العائم 🌟 */}
+      {/* 🌟 شريط التنقل السفلي الحديث 🌟 */}
       <div style={{
         position: 'fixed',
-        bottom: showBottomNav ? '20px' : '-100px',
+        bottom: showBottomNav ? '25px' : '-100px',
         left: '50%',
         transform: 'translateX(-50%)',
         width: 'calc(100% - 30px)',
-        maxWidth: '400px',
-        backgroundColor: 'var(--card-bg-locked)',
+        maxWidth: '420px',
+        backgroundColor: 'var(--card-bg-normal)',
         border: '1px solid var(--border-line)',
-        borderRadius: '24px',
-        padding: '10px 20px',
+        borderRadius: '30px',
+        padding: '8px 12px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
-        transition: 'bottom 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        zIndex: 1000,
+        boxShadow: '0 15px 40px rgba(0,0,0,0.25)',
         backdropFilter: 'blur(15px)',
-        WebkitTapHighlightColor: 'transparent'
+        WebkitBackdropFilter: 'blur(15px)',
+        transition: 'bottom 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
+        zIndex: 1000
       }}>
         {[
-          { id: 'schedule', icon: <ScheduleIcon /> },
-          { id: 'themes', icon: <ThemeIcon /> },
-          { id: 'profile', icon: <ProfileIcon /> },
-          { id: 'settings', icon: <SettingsIcon /> }
+          { id: 'schedule', icon: <ScheduleIcon />, label: 'الجدول' },
+          { id: 'materials', icon: <MaterialsIcon />, label: 'الملازم' },
+          { id: 'assignments', icon: <AssignmentIcon />, label: 'الواجبات' },
+          { id: 'settings', icon: <SettingsIcon />, label: 'الإعدادات' }
         ].map(item => {
           const isActive = activeTab === item.id;
           return (
@@ -1162,37 +1472,44 @@ function StudentView() {
                 if (item.id === 'schedule') setSelectedDay(null);
               }}
               style={{
-                background: 'transparent',
-                border: 'none',
-                color: isActive ? 'var(--primary-color)' : 'var(--text-muted)',
-                cursor: 'pointer',
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '8px',
-                transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                transform: isActive ? 'scale(1.15) translateY(-2px)' : 'scale(1) translateY(0)',
+                gap: isActive ? '6px' : '0px',
+                padding: isActive ? '12px 18px' : '12px',
+                backgroundColor: isActive ? 'rgba(150, 150, 150, 0.15)' : 'transparent',
+                color: isActive ? 'var(--primary-color)' : 'var(--text-muted)',
+                border: 'none',
+                borderRadius: '20px',
+                cursor: 'pointer',
+                transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
                 WebkitTapHighlightColor: 'transparent'
               }}
             >
-              <div style={{ 
-                width: '26px', 
-                height: '26px', 
-                display: 'flex', 
-                alignItems: 'center', 
+              <div style={{
+                width: '24px',
+                height: '24px',
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
-                filter: isActive ? 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))' : 'none'
+                flexShrink: 0,
+                transition: 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                transform: isActive ? 'scale(1.1)' : 'scale(1)'
               }}>
-                 {item.icon}
+                {item.icon}
               </div>
-              {isActive && (
-                <div style={{
-                  width: '4px', height: '4px', backgroundColor: 'var(--primary-color)',
-                  borderRadius: '50%', marginTop: '4px',
-                  boxShadow: '0 0 5px var(--primary-color)'
-                }}></div>
-              )}
+              <span style={{
+                fontWeight: 'bold',
+                fontSize: '14px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                transition: 'max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease, margin 0.4s ease',
+                maxWidth: isActive ? '100px' : '0px',
+                opacity: isActive ? 1 : 0,
+                marginLeft: isActive ? '4px' : '0px'
+              }}>
+                {item.label}
+              </span>
             </button>
           )
         })}
@@ -1203,4 +1520,4 @@ function StudentView() {
     </div>
   )
 }
-export default StudentView
+export default StudentView;

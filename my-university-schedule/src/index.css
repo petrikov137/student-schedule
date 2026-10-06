@@ -1,5 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&family=Tajawal:wght@300;400;500;700&display=swap');
 @import './themes.css'; /* استيراد الثيمات */
 
 html { overflow-y: scroll; }
@@ -93,7 +92,8 @@ body {
 button {
   position: relative;
   overflow: hidden;
-  font-family: 'Tajawal', sans-serif;
+  font-family: 'Tajawal', sans-serif; /* يمكن تغييره إلى Cairo لتوحيد الخطوط */
+  font-family: 'Cairo', sans-serif;
   border-radius: 8px;
   border: none;
   padding: 0.6em 1.2em;
@@ -200,17 +200,6 @@ button:active {
   backdrop-filter: blur(15px);
   -webkit-backdrop-filter: blur(15px);
 }
-
-
-
-
-
-
-
-
-
-
-
 
 /* -------------------------------------------------------------------------------------- */
 /* --- 🦊 تأثيرات ثيم الثعلب النهائية (المطر الواقعي 3D، الغيوم، وخلفيات متكيفة) --- */
@@ -331,4 +320,58 @@ html[data-theme='fox']::after {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
-/* -------------------------------------------------------------------------------------- */
+
+/* ========================================================= */
+/* --- 🌟 تصميم نظام الحضور والغياب (Attendance Buttons) --- */
+/* ========================================================= */
+
+/* التصميم الأساسي لأزرار الحضور داخل البطاقات */
+.attendance-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-family: 'Cairo', sans-serif;
+  font-weight: bold;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background-color: transparent;
+  color: #fff;
+  /* إزالة أي إعدادات للمس تسبب التحديد العشوائي في الهاتف */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* زر الحضور (تأثير زجاجي أخضر) */
+.attendance-btn.present {
+  background-color: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #10b981;
+}
+
+.attendance-btn.present:hover {
+  background-color: rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
+}
+
+/* زر الغياب (تأثير زجاجي أحمر) */
+.attendance-btn.absent {
+  background-color: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+.attendance-btn.absent:hover {
+  background-color: rgba(239, 68, 68, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+}
+
+.attendance-btn:active {
+  transform: scale(0.95);
+}

@@ -90,6 +90,7 @@ export default function ExamScheduleStudent() {
         .artistic-scroll::-webkit-scrollbar { width: 0px; background: transparent; }
       `}</style>
       
+      {/*
       <button 
         onClick={() => setIsOpen(true)}
         className="responsive-exam-btn"
@@ -135,7 +136,7 @@ export default function ExamScheduleStudent() {
           جدول الامتحانات
         </span>
       </button>
-      
+      */}
 
       {/* 🌟 الحل الجذري هنا: حقن النافذة في document.body متجاهلة زوم الأب 🌟 */}
       {isOpen && typeof document !== 'undefined' ? createPortal(

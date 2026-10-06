@@ -34,7 +34,6 @@ function Admin() {
     "اللغة الانكليزية",
   ];
   
-  // 🌟 إضافة خياري "واجب" و "تقرير" هنا 🌟
   const eventTypes = ["محاضرة", "مختبر", "امتحان", "أُخرى", "واجب", "تقرير"];
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -53,7 +52,6 @@ function Admin() {
   const [isDayOpen, setIsDayOpen] = useState(false);
   const [isExam, setIsExam] = useState(false);
 
-  // 🌟 حالة الإشعارات العامة 🌟
   const [isNotificationsEnabled, setIsNotificationsEnabled] = useState(true);
 
   const [activeTab, setActiveTab] = useState('schedule'); 
@@ -111,7 +109,6 @@ function Admin() {
         setMaterialsData(data.materials || {}); 
         if (data.materials) setMaterialsData(data.materials);
         
-        // 🌟 جلب حالة الإشعارات من القاعدة 🌟
         if (data.settings) {
           setIsNotificationsEnabled(data.settings.notificationsEnabled ?? true);
         }
@@ -206,7 +203,6 @@ function Admin() {
     } catch (error) { showNotification("❌ فشل إرسال الإشعار"); }
   };
 
-  // 🌟 دالة تبديل حالة الإشعارات العامة 🌟
   const toggleGlobalNotifications = async () => {
     const newStatus = !isNotificationsEnabled;
     setIsNotificationsEnabled(newStatus);
@@ -215,6 +211,53 @@ function Admin() {
       showNotification(newStatus ? "🔔 تم تفعيل بث الإشعارات" : "🔕 تم إيقاف بث الإشعارات");
     } catch (error) {
       showNotification("❌ فشل تحديث الإعدادات");
+    }
+  };
+
+  // 🌟 دالة أرشفة السنة الحالية وتصفير الجدول 🌟
+  const handleArchiveCurrentYear = async () => {
+    const yearName = window.prompt("أدخل اسم السنة الدراسية الحالية لحفظها في الأرشيف (مثال: 2023-2024):");
+    if (!yearName || yearName.trim() === "") return;
+
+    const confirmMsg = `تحذير خطير ⚠️\nسيتم نقل جميع الجداول والملازم الحالية إلى أرشيف باسم "${yearName}"، وسيتم تصفير الجدول الحالي بالكامل للبدء بسنة جديدة.\n\nهل أنت متأكد تماماً من هذا الإجراء؟`;
+    
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const dbRef = ref(database);
+      const snapshot = await get(dbRef);
+      if (!snapshot.exists()) return showNotification("❌ لا توجد بيانات لأرشفتها");
+
+      const currentData = snapshot.val();
+      
+      // 1. تجميع البيانات الحالية المراد أرشفتها
+      const archivePayload = {
+        materials: currentData.materials || {}
+      };
+
+      for (let i = 0; i <= 14; i++) {
+        if (currentData[`week_${i}`]) {
+          archivePayload[`week_${i}`] = currentData[`week_${i}`];
+        }
+      }
+
+      // 2. حفظ البيانات في عقدة الأرشيف
+      await set(ref(database, `archives/${yearName}`), archivePayload);
+
+      // 3. تصفير البيانات من الجذور (تهيئة السنة الجديدة)
+      const updatesToClear = {};
+      for (let i = 0; i <= 14; i++) {
+        updatesToClear[`week_${i}`] = null;
+      }
+      updatesToClear[`materials`] = null;
+
+      await update(ref(database, '/'), updatesToClear);
+
+      showNotification("✅ تم أرشفة السنة وتصفير الجداول بنجاح!");
+      
+    } catch (error) {
+      console.error(error);
+      showNotification("❌ حدث خطأ غير متوقع أثناء الأرشفة");
     }
   };
 
@@ -250,7 +293,6 @@ function Admin() {
     try {
       await update(ref(database, `week_${currentWeek}/${selectedDay}`), { subjects: subjectsList, isOpen: isDayOpen === true, isExam: isExam === true, lastUpdated: Date.now() });
       
-      // إرسال الإشعار فقط إذا كان اليوم مفعلاً ومفتاح الإشعارات مفعلاً
       if (isDayOpen === true && isNotificationsEnabled === true) {
         const title = "تحديث في الجدول 📅";
         const body = `تم تحديث بيانات يوم ${selectedDay} في ${weeks[currentWeek]}`;
@@ -508,7 +550,6 @@ function Admin() {
               <button onClick={nextWeek} style={{ backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '6px', padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>التالي</button>
             </div>
             
-            {/* 🌟 قسم الإشعارات المخصصة للأدمن 🌟 */}
             <div style={{ marginTop: '80px', borderTop: '1px dashed var(--border-line)', paddingTop: '30px', textAlign: 'center' }}>
               <h3 style={{ color: 'var(--text-pure)', fontSize: '18px', marginBottom: '20px' }}>إرسال إشعار للطلاب 🔔</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '350px', margin: '0 auto' }}>
@@ -532,7 +573,6 @@ function Admin() {
                   إرسال الإشعار الآن 🚀
                 </button>
 
-                {/* 🌟 نقل زر تفعيل بث الإشعارات التلقائي هنا 🌟 */}
                 <div style={{ marginTop: '10px', padding: '10px', borderTop: '1px solid var(--border-line)' }}>
                   <ToggleSwitch 
                     label="بث الإشعارات التلقائي" 
@@ -545,6 +585,20 @@ function Admin() {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* 🌟 قسم إدارة الأرشيف للأدمن 🌟 */}
+            <div style={{ marginTop: '40px', borderTop: '1px dashed var(--border-line)', paddingTop: '30px', textAlign: 'center' }}>
+              <h3 style={{ color: 'var(--text-pure)', fontSize: '18px', marginBottom: '10px' }}>إدارة الأرشيف 📂</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '20px', maxWidth: '350px', margin: '0 auto 20px auto', lineHeight: '1.5' }}>
+                استخدم هذا الخيار في نهاية العام الدراسي لنقل الجدول الحالي إلى الأرشيف والبدء بجدول فارغ للسنة الجديدة.
+              </p>
+              <button onClick={handleArchiveCurrentYear} style={{ backgroundColor: 'transparent', border: '1px solid #ff9800', borderRadius: '8px', padding: '12px 20px', color: '#ff9800', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', maxWidth: '350px', margin: '0 auto', transition: 'all 0.3s', WebkitTapHighlightColor: 'transparent' }} onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 152, 0, 0.1)'; }} onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+                أرشفة السنة الحالية وتصفير الجداول
+              </button>
             </div>
 
             <div style={{ marginTop: '40px', borderTop: '1px dashed var(--border-line)', paddingTop: '30px', textAlign: 'center' }}>
@@ -641,7 +695,7 @@ function Admin() {
           <path d="M12 19V5M5 12l7-7 7 7"/>
         </svg>
       </button>
-                                                         <ExamScheduleAdmin showNotification={showNotification} />
+      <ExamScheduleAdmin showNotification={showNotification} />
     </div>
   )
 }

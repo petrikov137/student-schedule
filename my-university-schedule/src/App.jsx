@@ -1,5 +1,5 @@
 import { HashRouter, Routes, Route } from 'react-router-dom'
-import StudentView from './StudentView'
+import StudentView from './Schedule/StudentView';
 import Admin from './Admin'
 import Login from './Login' // 🌟 استيراد صفحة الدخول
 

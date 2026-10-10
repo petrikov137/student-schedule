@@ -4,7 +4,7 @@ import { database } from './firebase';
 import { ref, onValue } from 'firebase/database';
 
 export default function ExamScheduleStudent() {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const [exams, setExams] = useState([]);
   const [materialsData, setMaterialsData] = useState({});
   const [selectedDay, setSelectedDay] = useState(null);

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 
 // أيقونات بسيطة للأنواع
@@ -12,14 +11,14 @@ const TypeIcon = ({ type }) => {
 export default function Profile({ user, navigate, totalPresent, totalAbsent, handleLogout, userAttendance, allScheduleData }) {
   const [expandedType, setExpandedType] = useState(null);
   
-  // 🌟 إضافات جديدة للتحكم بطريقة العرض والبطاقات الفرعية 🌟
-  const [viewMode, setViewMode] = useState('flat'); // 'flat' للطريقة القديمة، 'grouped' للطريقة الجديدة (حسب المواد)
-  const [expandedSubject, setExpandedSubject] = useState({}); // لتتبع المادة المفتوحة داخل كل تصنيف
+  // 🌟 للتحكم بطريقة العرض والبطاقات الفرعية 🌟
+  const [viewMode, setViewMode] = useState('flat'); 
+  const [expandedSubject, setExpandedSubject] = useState({}); 
   
   // 🌟 مفتاح الأنيميشن لعمل إعادة تحميل بصرية (Remount Effect) عند تبديل العرض 🌟
   const [animationKey, setAnimationKey] = useState(Date.now());
 
-  // خوارزمية جلب وتصنيف بيانات الحضور بدقة بناءً على الجدول
+  // خوارزمية جلب وتصنيف بيانات الحضور
   const statsDetails = useMemo(() => {
     if (!userAttendance || !allScheduleData) return {};
 
@@ -35,14 +34,13 @@ export default function Profile({ user, navigate, totalPresent, totalAbsent, han
         const dayAttendance = weekData[dayName];
 
         Object.keys(dayAttendance).forEach(subjIdx => {
-          const status = dayAttendance[subjIdx]; // 'present' or 'absent'
+          const status = dayAttendance[subjIdx]; 
           const scheduleSubj = allScheduleData[weekKey]?.[dayName]?.subjects?.[subjIdx];
 
           if (scheduleSubj) {
             const type = scheduleSubj.type || 'محاضرة';
             const name = scheduleSubj.name || 'مادة غير معروفة';
 
-            // حساب التاريخ الدقيق بناءً على نفس الخوارزمية في الجدول
             const targetDate = new Date(2026, 1, 1);
             targetDate.setDate(targetDate.getDate() + (wIdx * 7) + dIdx);
             const dateStr = `${targetDate.getDate()} / ${targetDate.getMonth() + 1}`;
@@ -54,10 +52,10 @@ export default function Profile({ user, navigate, totalPresent, totalAbsent, han
             if (status === 'present') details[type].presentCount++;
             if (status === 'absent') details[type].absentCount++;
 
-            // بناء المصفوفة للطريقة القديمة (التاريخية الكلية)
+            // بناء المصفوفة للطريقة القديمة
             details[type].items.push({ name, date: dateStr, status });
 
-            // بناء المصفوفة للطريقة الجديدة (تصنيف حسب المواد)
+            // بناء المصفوفة للطريقة الجديدة
             if (!details[type].subjects[name]) {
               details[type].subjects[name] = { presentCount: 0, absentCount: 0, history: [] };
             }
@@ -69,12 +67,8 @@ export default function Profile({ user, navigate, totalPresent, totalAbsent, han
       });
     });
 
-    // ترتيب العناصر داخل كل نوع (الأحدث أو ترتيب الأيام)
     Object.keys(details).forEach(key => {
-        // ترتيب الطريقة القديمة
         details[key].items.sort((a, b) => a.date.localeCompare(b.date));
-        
-        // ترتيب الطريقة الجديدة للمواد الفرعية
         Object.keys(details[key].subjects).forEach(subjKey => {
           details[key].subjects[subjKey].history.sort((a, b) => a.date.localeCompare(b.date));
         });
@@ -94,19 +88,19 @@ export default function Profile({ user, navigate, totalPresent, totalAbsent, han
     }));
   };
 
-  // 🌟 دالة لتبديل العرض مع تشغيل الأنيميشن وتصفير الحالات المفتوحة 🌟
+  // دالة لتبديل العرض مع تشغيل الأنيميشن وتصفير الحالات المفتوحة
   const handleViewChange = (newMode) => {
     if (newMode === viewMode) return;
     setViewMode(newMode);
     setExpandedType(null);
     setExpandedSubject({});
-    setAnimationKey(Date.now()); // يغير المفتاح لتشغيل أنيميشن الدخول من جديد
+    setAnimationKey(Date.now()); 
   };
 
   return (
     <div className="week-animate" style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '30px' }}>
       
-      {/* 🌟 تضمين ستايلات الأنيميشن الانسيابية التي تفضلها 🌟 */}
+      {/* 🌟 ستايلات الأنيميشن الانسيابية 🌟 */}
       <style>
         {`
           @keyframes cascadeIn {
@@ -122,12 +116,13 @@ export default function Profile({ user, navigate, totalPresent, totalAbsent, han
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
           }
-          .animate-list-item {
+          /* تم وضع الأنيميشن في غلاف خارجي لتجنب التضارب مع اللمعة */
+          .animate-wrapper {
             animation: cascadeIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
             opacity: 0;
           }
           .animate-sub-card {
-            animation: slideDownSubCard 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            animation: slideDownSubCard 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
             opacity: 0;
           }
         `}
@@ -156,8 +151,8 @@ export default function Profile({ user, navigate, totalPresent, totalAbsent, han
         </div>
       ) : (
         <>
-          {/* 🌟 البطاقة العلوية (المعلومات والإحصائيات الكلية) 🌟 */}
-          <div className="day-card animate-list-item" style={{ animationDelay: '0s', backgroundColor: 'var(--card-bg-normal)', padding: '30px 20px', borderRadius: '15px', border: '1px solid var(--border-line)' }}>
+          {/* البطاقة العلوية (المعلومات والإحصائيات الكلية) */}
+          <div className="day-card animate-wrapper" style={{ animationDelay: '0s', backgroundColor: 'var(--card-bg-normal)', padding: '30px 20px', borderRadius: '15px', border: '1px solid var(--border-line)' }}>
              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
                 <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
                    {user.displayName ? user.displayName[0].toUpperCase() : '👤'}
@@ -194,7 +189,7 @@ export default function Profile({ user, navigate, totalPresent, totalAbsent, han
           {Object.keys(statsDetails).length > 0 && (
             <div style={{ marginTop: '10px' }}>
               
-              {/* 🌟 زر التبديل الانسيابي الأنيق 🌟 */}
+              {/* زر التبديل الانسيابي الأنيق */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 10px 20px 10px' }}>
                 <h3 style={{ fontSize: '15px', color: 'var(--text-muted)', margin: 0, textAlign: 'right' }}>
                   تفاصيل السجل
@@ -202,9 +197,8 @@ export default function Profile({ user, navigate, totalPresent, totalAbsent, han
                 
                 <div style={{ 
                   position: 'relative', display: 'flex', backgroundColor: 'var(--card-bg-locked)', 
-                  borderRadius: '12px', padding: '4px', border: '1px solid var(--border-line)', width: '200px' 
+                  borderRadius: '12px', padding: '4px', border: '1px solid var(--border-line)', width: '220px' 
                 }}>
-                  {/* الخلفية المنزلقة */}
                   <div style={{
                     position: 'absolute', top: '4px', bottom: '4px', width: 'calc(50% - 4px)',
                     backgroundColor: 'var(--primary-color)', borderRadius: '8px',
@@ -238,36 +232,35 @@ export default function Profile({ user, navigate, totalPresent, totalAbsent, han
                 </div>
               </div>
               
-              {/* 🌟 قائمة البطاقات التي تتحدث بالكامل بتأثير الشلال (Cascade) عند التبديل 🌟 */}
+              {/* قائمة البطاقات بتأثير الشلال */}
               <div key={animationKey} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 {Object.keys(statsDetails).map((type, index) => {
                   const data = statsDetails[type];
                   const isExpanded = expandedType === type;
                   
-                  // 🌟 إعداد اللمعة للبطاقة الأم في طريقة (حسب المواد) 🌟
-                  const isGlowing = isExpanded && viewMode === 'grouped';
-                  
-                  const glowStyles = isGlowing ? {
+                  // 🌟 إعداد لمعة الجدول للبطاقة الأم عند فتحها 🌟
+                  const glowStyles = isExpanded ? {
                     backgroundImage: 'linear-gradient(270deg, var(--notify-1), var(--notify-2), var(--notify-3), var(--notify-1))',
                     backgroundSize: '400% 400%',
                     animation: 'gradientFadeMove 3s ease infinite',
                     borderTop: '1px solid var(--border-line)',
                     borderBottom: '1px solid var(--border-line)',
-                    borderRight: '1px solid var(--border-line)'
+                    borderRight: '1px solid var(--border-line)',
+                    backgroundColor: 'var(--card-bg-expanded)'
                   } : {
-                    backgroundColor: isExpanded && viewMode === 'flat' ? 'var(--card-bg-expanded)' : 'var(--card-bg-normal)'
+                    backgroundColor: 'var(--card-bg-normal)'
                   };
 
                   return (
-                    <div key={type} style={{ display: 'flex', flexDirection: 'column' }}>
+                    // 🌟 الغلاف الخارجي لضمان عدم تعارض الأنيميشن 🌟
+                    <div key={type} className="animate-wrapper" style={{ display: 'flex', flexDirection: 'column', animationDelay: `${index * 0.12}s` }}>
                       
-                      {/* البطاقة الأم */}
+                      {/* 🌟 البطاقة الأم 🌟 */}
                       <div 
-                        className="day-card animate-list-item"
+                        className="day-card schedule-day-box"
                         style={{ 
-                          animationDelay: `${index * 0.1}s`,
                           borderRadius: '12px', 
-                          borderLeft: `4px solid var(--primary-color)`,
+                          borderLeft: `5px solid var(--primary-color)`, 
                           zIndex: isExpanded ? 2 : 1,
                           overflow: 'hidden',
                           ...glowStyles
@@ -295,15 +288,15 @@ export default function Profile({ user, navigate, totalPresent, totalAbsent, han
                           </div>
                         </div>
 
-                        {/* 🌟 الطريقة الأولى: العرض الزمني القديم (مدمج داخل البطاقة الأم) 🌟 */}
+                        {/* 🌟 العرض الزمني القديم (مدمج داخل البطاقة الأم) 🌟 */}
                         {viewMode === 'flat' && (
                           <div style={{ 
                             maxHeight: isExpanded ? '2000px' : '0px', 
                             opacity: isExpanded ? 1 : 0, 
-                            // 🌟 نفس سرعة أنيميشن الجدول الأصلي 🌟
                             transition: isExpanded ? 'max-height 1.3s ease, opacity 0.7s ease' : 'all 0.5s ease',
                             backgroundColor: 'var(--card-bg-locked)',
-                            borderTop: isExpanded ? '1px solid var(--border-line)' : 'none'
+                            borderTop: isExpanded ? '1px solid var(--border-line)' : 'none',
+                            overflow: 'hidden' // 🌟 يمنع المحتوى من الظهور بجلتش أثناء الإغلاق 🌟
                           }}>
                             <div style={{ padding: '10px 16px 16px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               {data.items.map((item, idx) => (
@@ -330,97 +323,91 @@ export default function Profile({ user, navigate, totalPresent, totalAbsent, han
                         )}
                       </div>
 
-                      {/* 🌟 الطريقة الثانية: البطاقات الفرعية تظهر تحت البطاقة الأم 🌟 */}
+                      {/* 🌟 البطاقات الفرعية تظهر تحت البطاقة الأم 🌟 */}
                       {viewMode === 'grouped' && (
                         <div style={{
                           maxHeight: isExpanded ? '3000px' : '0px',
                           opacity: isExpanded ? 1 : 0,
                           overflow: 'hidden',
-                          // 🌟 نفس سرعة أنيميشن الجدول الأصلي 🌟
                           transition: isExpanded ? 'max-height 1.3s ease, opacity 0.7s ease' : 'all 0.5s ease',
-                          display: 'flex', 
-                          flexDirection: 'column', 
-                          gap: '10px',
-                          width: '94%', // 🌟 عرض أصغر فقط 🌟
-                          marginLeft: 'auto', // 🌟 محاذاة لجهة اليمين 🌟
-                          marginRight: '0',
-                          marginTop: isExpanded ? '10px' : '0px'
+                          width: '94%', // 🌟 عرض أصغر للتمييز كما طلبت 🌟
+                          marginLeft: 'auto', // محاذاة لليمين
+                          marginRight: '0'
                         }}>
-                          {Object.keys(data.subjects).map((subjName, sIdx) => {
-                             const subjData = data.subjects[subjName];
-                             const isSubjExpanded = expandedSubject[type] === subjName;
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px', paddingBottom: '10px' }}>
+                            {Object.keys(data.subjects).map((subjName, sIdx) => {
+                               const subjData = data.subjects[subjName];
+                               const isSubjExpanded = expandedSubject[type] === subjName;
 
-                             return (
-                               <div 
-                                 key={subjName}
-                                 className="day-card animate-sub-card"
-                                 style={{
-                                    animationDelay: `${sIdx * 0.08}s`, // ظهور متسلسل للبطاقات الفرعية
-                                    backgroundColor: 'var(--card-bg-normal)', // 🌟 نفس لون البطاقة الأم للحفاظ على الهوية 🌟
-                                    borderRadius: '10px',
-                                    borderLeft: '3px solid var(--primary-color)',
-                                    overflow: 'hidden',
-                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-                                 }}
-                               >
+                               return (
                                  <div 
-                                   onClick={(e) => { e.stopPropagation(); toggleSubjectExpand(type, subjName); }}
-                                   style={{ 
-                                     padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                     cursor: 'pointer', WebkitTapHighlightColor: 'transparent'
+                                   key={subjName}
+                                   className="day-card animate-sub-card"
+                                   style={{
+                                      animationDelay: `${sIdx * 0.08}s`,
+                                      backgroundColor: 'var(--card-bg-normal)', 
+                                      borderRadius: '12px', // مطابق للأم تماماً
+                                      borderLeft: '5px solid var(--primary-color)', // مطابق للأم تماماً
+                                      overflow: 'hidden',
+                                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                                    }}
                                  >
-                                    <span style={{ color: 'var(--text-pure)', fontWeight: 'bold', fontSize: '14px' }}>{subjName}</span>
-                                    
-                                    <div style={{ display: 'flex', gap: '8px', fontSize: '12px', fontWeight: 'bold' }}>
-                                      <span style={{ color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
-                                        {subjData.presentCount}
-                                      </span>
-                                      <span style={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
-                                        {subjData.absentCount}
-                                      </span>
-                                    </div>
-                                 </div>
+                                   <div 
+                                     onClick={(e) => { e.stopPropagation(); toggleSubjectExpand(type, subjName); }}
+                                     style={{ 
+                                       padding: '16px', // مطابق للأم تماماً
+                                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                       cursor: 'pointer', WebkitTapHighlightColor: 'transparent'
+                                     }}
+                                   >
+                                      <span style={{ color: 'var(--text-pure)', fontWeight: 'bold', fontSize: '16px' }}>{subjName}</span> 
+                                      
+                                      <div style={{ display: 'flex', gap: '10px', fontSize: '13px', fontWeight: 'bold' }}>
+                                        <span style={{ color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>
+                                          {subjData.presentCount}
+                                        </span>
+                                        <span style={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>
+                                          {subjData.absentCount}
+                                        </span>
+                                      </div>
+                                   </div>
 
-                                 {/* سجل التواريخ للمادة */}
-                                 <div style={{ 
-                                   maxHeight: isSubjExpanded ? '2000px' : '0px', 
-                                   opacity: isSubjExpanded ? 1 : 0, 
-                                   // 🌟 نفس سرعة أنيميشن الجدول الأصلي 🌟
-                                   transition: isSubjExpanded ? 'max-height 1.3s ease, opacity 0.7s ease' : 'all 0.5s ease',
-                                   backgroundColor: 'var(--card-bg-locked)',
-                                   borderTop: isSubjExpanded ? '1px solid var(--border-line)' : 'none',
-                                   // 🌟 الحل الجذري لمشكلة الزوايا (Corner Clipping) 🌟
-                                   borderBottomLeftRadius: '10px',
-                                   borderBottomRightRadius: '10px',
-                                   overflow: 'hidden'
-                                 }}>
-                                    <div style={{ padding: '8px 16px 12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                      {subjData.history.map((hist, hIdx) => (
-                                        <div key={hIdx} style={{ 
-                                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                          paddingBottom: '6px', borderBottom: hIdx !== subjData.history.length - 1 ? '1px dashed rgba(128,128,128,0.2)' : 'none',
-                                          paddingTop: '6px'
-                                        }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ 
-                                              width: '6px', height: '6px', borderRadius: '50%', 
-                                              backgroundColor: hist.status === 'present' ? '#10b981' : '#ef4444'
-                                            }} />
-                                            <span style={{ color: hist.status === 'present' ? '#10b981' : '#ef4444', fontSize: '12px', fontWeight: 'bold' }}>
-                                              {hist.status === 'present' ? 'حاضر' : 'غائب'}
+                                   {/* سجل التواريخ للمادة المنفردة */}
+                                   <div style={{ 
+                                     maxHeight: isSubjExpanded ? '2000px' : '0px', 
+                                     opacity: isSubjExpanded ? 1 : 0, 
+                                     transition: isSubjExpanded ? 'max-height 1.3s ease, opacity 0.7s ease' : 'all 0.5s ease',
+                                     backgroundColor: 'var(--card-bg-locked)',
+                                     borderTop: isSubjExpanded ? '1px solid var(--border-line)' : 'none',
+                                     overflow: 'hidden'
+                                   }}>
+                                      <div style={{ padding: '8px 16px 12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {subjData.history.map((hist, hIdx) => (
+                                          <div key={hIdx} style={{ 
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                            paddingBottom: '6px', borderBottom: hIdx !== subjData.history.length - 1 ? '1px dashed rgba(128,128,128,0.2)' : 'none',
+                                            paddingTop: '6px'
+                                          }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                              <div style={{ 
+                                                width: '6px', height: '6px', borderRadius: '50%', 
+                                                backgroundColor: hist.status === 'present' ? '#10b981' : '#ef4444'
+                                              }} />
+                                              <span style={{ color: hist.status === 'present' ? '#10b981' : '#ef4444', fontSize: '12px', fontWeight: 'bold' }}>
+                                                {hist.status === 'present' ? 'حاضر' : 'غائب'}
+                                              </span>
+                                            </div>
+                                            <span style={{ color: 'var(--text-details)', fontSize: '11px', fontFamily: 'monospace' }}>
+                                              {hist.date}
                                             </span>
                                           </div>
-                                          <span style={{ color: 'var(--text-details)', fontSize: '11px', fontFamily: 'monospace' }}>
-                                            {hist.date}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
+                                        ))}
+                                      </div>
+                                   </div>
                                  </div>
-                               </div>
-                             );
-                          })}
+                               );
+                            })}
+                          </div>
                         </div>
                       )}
 

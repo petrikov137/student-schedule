@@ -1,5 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { database } from '../firebase';
 import { ref, set } from 'firebase/database';
 import { courseSubjectsList, staticTimetable } from './ScheduleData/CourseConfig';
@@ -36,56 +36,110 @@ const [dynamicEvents, setDynamicEvents] = useState([]); // الواجبات وا
 const [editIsOpen, setEditIsOpen] = useState(false);
 const [editIsExam, setEditIsExam] = useState(false);
 
+// 🌟 حالات النافذة العائمة للتعديل على محاضرة منفردة 🌟
+const [editingSubjectId, setEditingSubjectId] = useState(null);
+const [modalDraft, setModalDraft] = useState(null);
+
 useEffect(() => {
  if (dayInfo) {
    setFixedOverrides(dayInfo.fixedOverrides || {});
    setDynamicEvents(dayInfo.dynamicEvents || []);
-   setEditIsOpen(dayInfo.isOpen ?? true);
-   setEditIsExam(dayInfo.isExam ?? false);
+   setEditIsOpen(dayInfo.isOpen === true);
+   setEditIsExam(dayInfo.isExam === true);
  } else {
    setFixedOverrides({});
    setDynamicEvents([]);
-   setEditIsOpen(true);
+   setEditIsOpen(false); // افتراضياً اليوم غير مفعل (خافت) ما لم يفتحه الأدمن
    setEditIsExam(false);
  }
 }, [dayInfo, isExpanded]);
 
+// إغلاق النافذة العائمة عند إغلاق وضع الأدمن أو تغيير اليوم
+useEffect(() => {
+ if (!isAdminMode || !isExpanded) {
+   setEditingSubjectId(null);
+   setModalDraft(null);
+ }
+}, [isAdminMode, isExpanded]);
+
 const canAdminEditSubject = (subjGroups) => {
  if (userRole === 'super_admin' || !userRole) return true;
- const adminGroup = userRole.split('_')[1].toUpperCase(); 
+ const adminGroup = userRole.split('_')[1]?.toUpperCase(); 
  if (!subjGroups || subjGroups.length === 0) return false; 
  return subjGroups.includes(adminGroup);
 };
 
-// 🌟 دمج الجدول الثابت مع تعديلات الأدمن للعرض 🌟
+// 🌟 دمج الجدول الثابت مع تعديلات الأدمن للعرض (مع دعم كروب X الموحد وفلترة الكروبات) 🌟
 const mergedSubjects = useMemo(() => {
  const staticForDay = staticTimetable[day] || [];
  const list = [];
 
  // 1. معالجة المواد الثابتة
- staticForDay.forEach(staticSubj => {
-   const isVisibleForGroup = !staticSubj.groups || staticSubj.groups.length === 0 || staticSubj.groups.includes(activeGroup);
-   const override = fixedOverrides[staticSubj.id] || {};
-   
-   // إذا كنا في وضع الأدمن، نظهر المادة حتى لو كانت مخفية لكي يستطيع إرجاعها
-   if (override.isHidden && !isAdminMode) return;
-   // إذا كانت غير مرئية للكروب، نظهرها للأدمن فقط إن كان يملك صلاحية أو في وضع الأدمن
-   if (!isVisibleForGroup && !isAdminMode) return;
+ if (activeGroup === 'X') {
+   // في كروب X: نجمع المواد المتشابهة في نفس اليوم لتظهر مرة واحدة وتطبق التعديلات على كل الكروبات المشمولة
+   const groupedBySubject = new Map();
 
-   list.push({
-     ...staticSubj,
-     type: override.type || staticSubj.type,
-     content: override.content || staticSubj.content || "",
-     isHidden: override.isHidden || false,
-     isFixed: true,
-     originalType: staticSubj.type
+   staticForDay.forEach(staticSubj => {
+     const key = `${staticSubj.name}_${staticSubj.type}`;
+     if (!groupedBySubject.has(key)) {
+       groupedBySubject.set(key, {
+         ...staticSubj,
+         targetIds: [staticSubj.id],
+         groups: [...(staticSubj.groups || [])]
+       });
+     } else {
+       const existing = groupedBySubject.get(key);
+       existing.targetIds.push(staticSubj.id);
+       if (staticSubj.groups) {
+         existing.groups = Array.from(new Set([...existing.groups, ...staticSubj.groups]));
+       }
+     }
    });
- });
+
+   groupedBySubject.forEach(groupedSubj => {
+     const overrides = groupedSubj.targetIds.map(id => fixedOverrides[id] || {});
+     const allHidden = overrides.length > 0 && overrides.every(o => o.isHidden);
+     if (allHidden && !isAdminMode) return;
+
+     const firstWithContent = overrides.find(o => o.content !== undefined && o.content !== "");
+     const firstWithType = overrides.find(o => o.type !== undefined);
+
+     list.push({
+       ...groupedSubj,
+       type: firstWithType ? firstWithType.type : groupedSubj.type,
+       content: firstWithContent ? firstWithContent.content : (groupedSubj.content || ""),
+       isHidden: allHidden,
+       isFixed: true,
+       originalType: groupedSubj.type
+     });
+   });
+ } else {
+   // في الكروبات العادية (A, B, C, D): نعرض فقط محاضرات الكروب المختار في الهيدر (سواء للطالب أو للأدمن)
+   staticForDay.forEach(staticSubj => {
+     const isVisibleForGroup = !staticSubj.groups || staticSubj.groups.length === 0 || staticSubj.groups.includes(activeGroup);
+     if (!isVisibleForGroup) return;
+
+     const override = fixedOverrides[staticSubj.id] || {};
+     
+     // إذا كنا في وضع الأدمن، نظهر المادة حتى لو كانت مخفية لكي يستطيع إرجاعها
+     if (override.isHidden && !isAdminMode) return;
+
+     list.push({
+       ...staticSubj,
+       targetIds: [staticSubj.id],
+       type: override.type || staticSubj.type,
+       content: override.content !== undefined ? override.content : (staticSubj.content || ""),
+       isHidden: override.isHidden || false,
+       isFixed: true,
+       originalType: staticSubj.type
+     });
+   });
+ }
 
  // 2. معالجة المواد الديناميكية الإضافية
  dynamicEvents.forEach(dynSubj => {
-   const isVisibleForGroup = !dynSubj.groups || dynSubj.groups.length === 0 || dynSubj.groups.includes(activeGroup);
-   if (isVisibleForGroup || isAdminMode) {
+   const isVisibleForGroup = activeGroup === 'X' || !dynSubj.groups || dynSubj.groups.length === 0 || dynSubj.groups.includes(activeGroup);
+   if (isVisibleForGroup) {
      list.push({ ...dynSubj, isFixed: false });
    }
  });
@@ -95,28 +149,43 @@ const mergedSubjects = useMemo(() => {
 
 // ---------- دوال تحكم الأدمن ----------
 
-const toggleHideFixed = (fixedId) => {
- setFixedOverrides(prev => ({
-   ...prev,
-   [fixedId]: { ...prev[fixedId], isHidden: !prev[fixedId]?.isHidden }
- }));
+const toggleHideFixed = (targetIds) => {
+ const ids = Array.isArray(targetIds) ? targetIds : [targetIds];
+ setFixedOverrides(prev => {
+   const next = { ...prev };
+   const currentlyAllHidden = ids.every(id => prev[id]?.isHidden);
+   ids.forEach(id => {
+     next[id] = { ...prev[id], isHidden: !currentlyAllHidden };
+   });
+   return next;
+ });
 };
 
-const updateFixedOverride = (fixedId, field, value) => {
- setFixedOverrides(prev => ({
-   ...prev,
-   [fixedId]: { ...prev[fixedId], [field]: value }
- }));
+const updateFixedOverride = (targetIds, field, value) => {
+ const ids = Array.isArray(targetIds) ? targetIds : [targetIds];
+ setFixedOverrides(prev => {
+   const next = { ...prev };
+   ids.forEach(id => {
+     next[id] = { ...prev[id], [field]: value };
+   });
+   return next;
+ });
 };
 
 const handleAddDynamic = (e) => {
  e.stopPropagation();
  let defaultGroups = [];
- if (userRole && userRole.startsWith('admin_') && userRole !== 'super_admin') {
+ if (activeGroup && activeGroup !== 'X') {
+   defaultGroups = [activeGroup];
+ } else if (userRole && userRole.startsWith('admin_') && userRole !== 'super_admin') {
    defaultGroups = [userRole.split('_')[1].toUpperCase()];
  }
  const newId = `dynamic_${Date.now()}`;
- setDynamicEvents([...dynamicEvents, { id: newId, type: "امتحان", name: courseSubjectsList[0], content: "", groups: defaultGroups }]);
+ const newEvent = { id: newId, type: "امتحان", name: courseSubjectsList[0], content: "", groups: defaultGroups };
+ setDynamicEvents(prev => [...prev, newEvent]);
+ // فتح النافذة العائمة فوراً للحدث الجديد
+ setEditingSubjectId(newId);
+ setModalDraft({ ...newEvent, isFixed: false });
 };
 
 const updateDynamic = (dynId, field, value) => {
@@ -139,6 +208,82 @@ const removeDynamic = (dynId) => {
  setDynamicEvents(prev => prev.filter(ev => ev.id !== dynId));
 };
 
+// ---------- دوال النافذة العائمة للمحاضرة ----------
+
+const openSubjectModal = (subject, e) => {
+ if (e) e.stopPropagation();
+ const hasPermission = canAdminEditSubject(subject.groups);
+ if (!hasPermission) {
+   showToast("🔒 هذه مادة مشتركة (للقراءة فقط)", "error");
+   return;
+ }
+ setEditingSubjectId(subject.id);
+ setModalDraft({
+   ...subject,
+   groups: [...(subject.groups || [])],
+   targetIds: subject.targetIds ? [...subject.targetIds] : [subject.id]
+ });
+};
+
+const closeSubjectModal = (e) => {
+ if (e) e.stopPropagation();
+ setEditingSubjectId(null);
+ setModalDraft(null);
+};
+
+const toggleDraftGroup = (grp) => {
+ setModalDraft(prev => {
+   if (!prev) return prev;
+   let currentGroups = [...(prev.groups || [])];
+   if (currentGroups.includes(grp)) {
+     currentGroups = currentGroups.filter(g => g !== grp);
+   } else {
+     currentGroups.push(grp);
+   }
+   return { ...prev, groups: currentGroups };
+ });
+};
+
+const handleSaveSubjectModal = (e) => {
+ if (e) e.stopPropagation();
+ if (!modalDraft) return;
+
+ if (modalDraft.isFixed) {
+   const ids = Array.isArray(modalDraft.targetIds) ? modalDraft.targetIds : [modalDraft.id];
+   setFixedOverrides(prev => {
+     const next = { ...prev };
+     ids.forEach(id => {
+       next[id] = {
+         ...prev[id],
+         type: modalDraft.type,
+         content: modalDraft.content,
+         isHidden: modalDraft.isHidden
+       };
+     });
+     return next;
+   });
+ } else {
+   setDynamicEvents(prev => prev.map(ev => ev.id === modalDraft.id ? {
+     ...ev,
+     type: modalDraft.type,
+     name: modalDraft.name,
+     content: modalDraft.content,
+     groups: modalDraft.groups
+   } : ev));
+ }
+
+ setEditingSubjectId(null);
+ setModalDraft(null);
+};
+
+const handleDeleteFromModal = (e) => {
+ if (e) e.stopPropagation();
+ if (!modalDraft) return;
+ removeDynamic(modalDraft.id);
+ setEditingSubjectId(null);
+ setModalDraft(null);
+};
+
 const handleSaveDay = async (e) => {
  e.stopPropagation();
  try {
@@ -159,7 +304,7 @@ const handleSaveDay = async (e) => {
 let dayAttendance = {};
 let markedCount = 0; let presentCount = 0; let absentCount = 0; let totalSubjects = 0;
 // نحسب الحضور بناءً على العناصر المعروضة للطالب فقط (حتى لا تحسب المحذوفات)
-const studentVisibleSubjects = mergedSubjects.filter(s => !s.isHidden && (!s.groups || s.groups.length === 0 || s.groups.includes(activeGroup)));
+const studentVisibleSubjects = mergedSubjects.filter(s => !s.isHidden && (activeGroup === 'X' || !s.groups || s.groups.length === 0 || s.groups.includes(activeGroup)));
 
 if (isExpanded && user && selectedArchive === null) {
  dayAttendance = userAttendance[`week_${currentWeek}`]?.[day] || {};
@@ -175,24 +320,44 @@ if (isExpanded && user && selectedArchive === null) {
  });
 }
 
+// 🌟 حساب حالة البطاقة والألوان بشكل حي وفوري (خصوصاً في وضع الأدمن) 🌟
+const effectiveIsLocked = (isAdminMode && isExpanded) ? !editIsOpen : isLocked;
+const effectiveIsExam = (isAdminMode && isExpanded) ? editIsExam : isExam;
+const nonExamColor = (!isExam && statusColor !== '#ff0000d1') ? statusColor : 'var(--primary-color)';
+const effectiveStatusColor = effectiveIsExam ? '#ff0000d1' : nonExamColor;
+
 return (
+ <>
+ <style>{`
+   @keyframes adminModalBackdropIn {
+     from { opacity: 0; }
+     to { opacity: 1; }
+   }
+   @keyframes adminModalCardIn {
+     from { opacity: 0; transform: translateY(24px) scale(0.95); }
+     to { opacity: 1; transform: translateY(0) scale(1); }
+   }
+ `}</style>
+
  <div 
    className={`day-card ${isExpanded ? 'expanded' : ''} schedule-day-box`}
    style={{
-     opacity: (isLocked && !isAdminMode) ? 0.6 : 1, cursor: (isLocked && !isAdminMode) ? 'default' : 'pointer',
+     opacity: effectiveIsLocked ? 0.6 : 1,
+     cursor: (isLocked && !isAdminMode) ? 'default' : 'pointer',
      ...(showNotification && !isAdminMode ? {
        backgroundImage: 'linear-gradient(270deg, var(--notify-1), var(--notify-2), var(--notify-3), var(--notify-1))', backgroundSize: '400% 400%', animation: 'gradientFadeMove 3s ease infinite', borderTop: '1px solid var(--border-line)', borderBottom: '1px solid var(--border-line)', borderRight: '1px solid var(--border-line)'
-     } : { backgroundColor: (isLocked && !isAdminMode) ? 'var(--card-bg-locked)' : 'var(--card-bg-normal)' }),
-     borderLeft: (isLocked && !isAdminMode) ? '5px solid var(--dot-bg)' : `5px solid ${statusColor}`,
-     outline: (isAdminMode && isExpanded) ? '1px dashed var(--primary-color)' : 'none', outlineOffset: '-1px'
+     } : { backgroundColor: effectiveIsLocked ? 'var(--card-bg-locked)' : (isExpanded ? 'var(--card-bg-expanded)' : 'var(--card-bg-normal)') }),
+     borderLeft: (effectiveIsLocked && !(isAdminMode && isExpanded && effectiveIsExam)) ? '5px solid var(--dot-bg)' : `5px solid ${effectiveStatusColor}`,
+     outline: (isAdminMode && isExpanded) ? '1px dashed var(--primary-color)' : 'none', outlineOffset: '-1px',
+     transition: 'opacity 0.3s ease, border-color 0.3s ease, background-color 0.3s ease'
    }}
  >
    <div onClick={(e) => toggleDay(day, (isLocked && !isAdminMode), e)} style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px' }}>
-     <h3 style={{ margin: 0, fontSize: '18px', color: (isLocked && !isAdminMode) ? 'var(--text-muted)' : 'var(--text-pure)' }}>
-       {day} {isExam && !(isLocked && !isAdminMode) && !isExpanded ? '!!' : ''}
-       {isAdminMode && isExpanded && <span style={{fontSize:'12px', color:'var(--primary-color)', marginRight:'10px'}}>✏️ تعديل</span>}
+     <h3 style={{ margin: 0, fontSize: '18px', color: effectiveIsLocked ? 'var(--text-muted)' : 'var(--text-pure)' }}>
+       {day} {effectiveIsExam && !effectiveIsLocked && !isExpanded ? '!!' : ''}
+       {isAdminMode && isExpanded && <span style={{fontSize:'12px', color:'var(--primary-color)', marginRight:'10px'}}>✏️ تعديل ({activeGroup === 'X' ? 'الكل X' : `كروب ${activeGroup}`})</span>}
      </h3>
-     <span style={{ fontSize: '14px', color: (isLocked && !isAdminMode) ? 'var(--text-muted)' : (isExpanded ? statusColor : 'var(--text-main)'), backgroundColor: isExpanded ? `${statusColor}1a` : 'transparent', padding: '4px 10px', borderRadius: '8px', fontWeight: 'bold' }}>{dateString}</span>
+     <span style={{ fontSize: '14px', color: (effectiveIsLocked && !(isAdminMode && isExpanded && effectiveIsExam)) ? 'var(--text-muted)' : (isExpanded ? effectiveStatusColor : 'var(--text-main)'), backgroundColor: isExpanded ? `${effectiveStatusColor}1a` : 'transparent', padding: '4px 10px', borderRadius: '8px', fontWeight: 'bold', transition: 'all 0.3s ease' }}>{dateString}</span>
    </div>
    
    <div style={{ maxHeight: isExpanded ? '5000px' : '0px', opacity: isExpanded ? 1 : 0, transition: isExpanded ? 'max-height 1.3s ease, opacity 0.7s ease' : 'all 0.5s ease', borderTop: isExpanded ? '1px solid var(--border-line)' : 'none', overflow: 'hidden' }}>
@@ -206,88 +371,123 @@ return (
              <ToggleSwitch label="يوم امتحانات" isChecked={editIsExam} onChange={() => setEditIsExam(!editIsExam)} activeColor="#ff0000" />
            </div>
            
-           <div style={{ textAlign: 'right', marginTop: '10px' }}>
+           {/* عرض المحاضرات بشكل مشابه لواجهة الطالب مع فتح نافذة التعديل عند الضغط */}
+           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '5px' }}>
              {mergedSubjects.map((subject) => {
                const hasPermission = canAdminEditSubject(subject.groups);
                const isFixed = subject.isFixed;
+               const targetIds = subject.targetIds || [subject.id];
+               const isSpecificExam = subject.type === 'امتحان';
+               const eventType = subject.type || 'محاضرة';
+               const subjectName = subject.name || 'مادة سابقة';
+               const typeAndContentColor = isSpecificExam ? '#ff4444' : 'var(--text-details)';
+               const eventTypeColor = isSpecificExam ? '#ff4444' : 'var(--text-details)';
                
                return (
-                 <div key={subject.id} style={{ 
-                   display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px', 
-                   backgroundColor: 'var(--card-bg-locked)', padding: '20px 16px', borderRadius: '12px', 
-                   border: isFixed ? '2px solid var(--dot-bg)' : '1px dashed var(--primary-color)', position: 'relative',
-                   opacity: hasPermission ? (subject.isHidden ? 0.4 : 1) : 0.6, pointerEvents: hasPermission ? 'auto' : 'none'
-                 }}>
-                   {/* أزرار الإخفاء/الحذف للأدمن */}
-                   {hasPermission && isFixed && (
-                     <button onClick={() => toggleHideFixed(subject.id)} style={{ position: 'absolute', top: '10px', left: '10px', background: subject.isHidden ? '#10b981' : '#d32f2f', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer' }}>
-                       {subject.isHidden ? 'إظهار للطالب 👁️' : 'إخفاء عن الطالب 🚫'}
-                     </button>
-                   )}
-                   {hasPermission && !isFixed && (
-                     <button onClick={() => removeDynamic(subject.id)} style={{ position: 'absolute', top: '10px', left: '10px', background: 'transparent', border: 'none', color: '#d32f2f', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>✕</button>
-                   )}
-                   
-                   {!hasPermission && (
-                     <div style={{ position: 'absolute', top: '10px', left: '10px', color: '#d32f2f', fontSize: '11px', fontWeight: 'bold', backgroundColor: 'rgba(211,47,47,0.1)', padding: '4px 8px', borderRadius: '6px' }}>مادة مشتركة (قراءة فقط)</div>
-                   )}
-                   
-                   {isFixed && (
-                     <div style={{ position: 'absolute', top: '10px', right: '10px', color: 'var(--text-muted)', fontSize: '11px', fontWeight: 'bold' }}>📌 أساسية في الجدول</div>
-                   )}
-                   
-                   {/* الكروبات (تعديلها مسموح فقط للإضافات الديناميكية) */}
-                   <div style={{ paddingRight: '5px', marginTop: isFixed ? '20px' : '0' }}>
-                     <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>الكروبات المشمولة</div>
-                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', opacity: isFixed ? 0.7 : 1, pointerEvents: isFixed ? 'none' : 'auto' }}>
-                       {groupOptions.map(grp => {
-                         const isSelected = subject.groups && subject.groups.includes(grp);
-                         const isShared = !subject.groups || subject.groups.length === 0;
-                         const isBtnActive = isSelected || isShared;
-                         return (
-                           <div key={grp} onClick={() => !isFixed && toggleDynamicGroup(subject.id, grp)} style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: isFixed ? 'not-allowed' : 'pointer', backgroundColor: isBtnActive ? 'var(--primary-color)' : 'transparent', color: isBtnActive ? '#fff' : 'var(--text-muted)', border: isBtnActive ? '1px solid var(--primary-color)' : '1px solid var(--border-line)' }}>كروب {grp}</div>
-                         )
-                       })}
-                     </div>
-                   </div>
+                 <div 
+                   key={subject.id} 
+                   className="subject-inner-card"
+                   onClick={(e) => openSubjectModal(subject, e)}
+                   style={{ 
+                     backgroundColor: 'var(--card-bg-locked)', 
+                     borderRadius: '12px', 
+                     display: 'flex', 
+                     flexDirection: 'column', 
+                     textAlign: 'right',
+                     borderRight: `4px solid ${subject.isHidden ? '#ef4444' : (isSpecificExam ? '#ff4444' : 'var(--primary-color)')}`, 
+                     borderTop: isFixed ? '1px solid transparent' : '1px dashed var(--border-line)',
+                     borderBottom: isFixed ? '1px solid transparent' : '1px dashed var(--border-line)',
+                     borderLeft: isFixed ? '1px solid transparent' : '1px dashed var(--border-line)',
+                     boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                     position: 'relative', 
+                     overflow: 'hidden', 
+                     userSelect: 'none', 
+                     boxSizing: 'border-box',
+                     cursor: hasPermission ? 'pointer' : 'not-allowed',
+                     opacity: hasPermission ? (subject.isHidden ? 0.5 : 1) : 0.6,
+                     transition: 'transform 0.2s ease, opacity 0.3s ease, box-shadow 0.2s ease'
+                   }}
+                 >
+                   <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                     
+                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                       <span style={{ color: eventTypeColor, fontSize: '13px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                         {eventType === 'محاضرة' && <LectureIcon />}
+                         {eventType === 'مختبر' && <LabIcon />}
+                         {(eventType === 'واجب' || eventType === 'تقرير') && ( <div style={{ width: '18px', height: '18px', display: 'flex' }}><AssignmentIcon /></div> )}
+                         {eventType}
+                       </span>
 
-                   {/* نوع الحدث والعنوان */}
-                   <div style={{ display: 'flex', gap:'10px' }}>
-                     <div style={{ flex: 1 }}>
-                       <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>النوع</div>
-                       <select value={subject.type} onChange={(e) => isFixed ? updateFixedOverride(subject.id, 'type', e.target.value) : updateDynamic(subject.id, 'type', e.target.value)} style={{width:'100%', padding:'10px', borderRadius:'6px', background:'var(--card-bg-normal)', color:'var(--text-pure)', border:'1px solid var(--border-line)'}}>
-                         {isFixed ? (
-                           <>
-                             <option value={subject.originalType}>{subject.originalType}</option>
-                             <option value="امتحان">امتحان</option>
-                           </>
-                         ) : dynamicEventTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                       </select>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                         {subject.isHidden && (
+                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.12)', padding: '3px 8px', borderRadius: '6px' }}>
+                             🚫 مخفية عن الطلاب
+                           </span>
+                         )}
+                         {!hasPermission ? (
+                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.12)', padding: '3px 8px', borderRadius: '6px' }}>
+                             🔒 قراءة فقط
+                           </span>
+                         ) : (
+                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-muted)', backgroundColor: 'var(--card-bg-normal)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border-line)' }}>
+                             {isFixed ? (activeGroup === 'X' && targetIds.length > 1 ? `📌 موحدة (${subject.groups.join(', ')})` : '📌 أساسية') : `✨ إضافية (${subject.groups && subject.groups.length > 0 ? subject.groups.join(', ') : 'الكل'})`}
+                           </span>
+                         )}
+                         {hasPermission && (
+                           <div style={{ width: '26px', height: '26px', borderRadius: '50%', backgroundColor: 'var(--card-bg-normal)', border: '1px solid var(--border-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)', fontSize: '12px' }}>
+                             ✏️
+                           </div>
+                         )}
+                       </div>
                      </div>
-                     <div style={{ flex: 2 }}>
-                       <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>المادة</div>
-                       <select disabled={isFixed} value={subject.name} onChange={(e) => !isFixed && updateDynamic(subject.id, 'name', e.target.value)} style={{width:'100%', padding:'10px', borderRadius:'6px', background:'var(--card-bg-normal)', color: 'var(--text-pure)', border:'1px solid var(--border-line)', opacity: isFixed ? 0.7 : 1}}>
-                         {isFixed ? <option value={subject.name}>{subject.name}</option> : courseSubjectsList.map(s => <option key={s} value={s}>{s}</option>)}
-                       </select>
-                     </div>
-                   </div>
-                   
-                   {/* التفاصيل (مسموح للجميع تعديلها) */}
-                   <div style={{ paddingRight: '5px' }}>
-                     <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>إضافة ملاحظة للطلاب</div>
-                     <textarea placeholder="محتوى الدرس أو الملاحظات..." value={subject.content || ''} onChange={(e) => { 
-                       e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px';
-                       isFixed ? updateFixedOverride(subject.id, 'content', e.target.value) : updateDynamic(subject.id, 'content', e.target.value); 
-                     }} style={{ padding: '12px 14px', borderRadius: '6px', border: '1px solid var(--border-line)', backgroundColor: 'var(--card-bg-normal)', color: 'var(--text-pure)', fontFamily: 'inherit', resize: 'none', minHeight: '50px', fontSize: '14px', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                     
+                     <span style={{ color: 'var(--text-pure)', fontSize: '18px', fontWeight: 'bold', marginTop: '2px', textDecoration: subject.isHidden ? 'line-through' : 'none' }}>
+                       {subjectName}
+                     </span>
+                     
+                     {subject.content ? (
+                       <span style={{ color: typeAndContentColor, fontSize: '14px', whiteSpace: 'pre-wrap', marginTop: '4px', lineHeight: '1.6' }}>
+                         {subject.content}
+                       </span>
+                     ) : (
+                       <span style={{ color: 'var(--text-muted)', fontSize: '12px', opacity: 0.6, marginTop: '2px' }}>
+                         اضغط لإضافة ملاحظات أو تعديل المحاضرة...
+                       </span>
+                     )}
                    </div>
                  </div>
                )
              })}
 
-             <button onClick={handleAddDynamic} style={{ backgroundColor: 'transparent', color: 'var(--primary-color)', border: '1px dashed var(--primary-color)', borderRadius: '6px', padding: '10px 16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center' }}><span>+</span> إضافة حدث إضافي (امتحان، واجب...)</button>
+             {/* 🌟 بطاقة إضافة حدث إضافي (شفافة ببوردر منقط وعلامة + فقط) 🌟 */}
+             <div 
+               onClick={handleAddDynamic}
+               className="subject-inner-card"
+               style={{ 
+                 backgroundColor: 'transparent', 
+                 border: '1.5px dashed var(--primary-color)', 
+                 borderRadius: '12px', 
+                 minHeight: '68px',
+                 display: 'flex', 
+                 alignItems: 'center', 
+                 justifyContent: 'center', 
+                 cursor: 'pointer',
+                 color: 'var(--primary-color)',
+                 fontSize: '28px',
+                 fontWeight: '300',
+                 lineHeight: 1,
+                 userSelect: 'none',
+                 transition: 'all 0.25s ease',
+                 WebkitTapHighlightColor: 'transparent'
+               }}
+               onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--card-bg-locked)'; e.currentTarget.style.transform = 'scale(0.99)'; }}
+               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
+             >
+               +
+             </div>
 
            </div>
-           <button onClick={handleSaveDay} style={{ marginTop: '15px', backgroundColor: 'var(--primary-color)', width: '100%', padding: '16px', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' }}> حفظ التعديلات لليوم</button>
+           <button onClick={handleSaveDay} style={{ marginTop: '10px', backgroundColor: 'var(--primary-color)', width: '100%', padding: '16px', border: 'none', borderRadius: '10px', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', WebkitTapHighlightColor: 'transparent' }}> حفظ التعديلات لليوم</button>
          </div>
        ) : (
        /* ===================== واجهة الطالب العادية ===================== */
@@ -394,5 +594,238 @@ return (
      </div>
    </div>
  </div>
+
+ {/* 🌟 النافذة العائمة الفاخرة للتعديل على المحاضرة (Admin Subject Modal) 🌟 */}
+ {isAdminMode && editingSubjectId && modalDraft && typeof document !== 'undefined' ? createPortal(
+   <div 
+     onClick={closeSubjectModal}
+     style={{
+       position: 'fixed',
+       top: 0, left: 0, right: 0, bottom: 0,
+       width: '100vw', height: '100vh',
+       backgroundColor: 'rgba(0, 0, 0, 0.55)',
+       backdropFilter: 'blur(18px)',
+       WebkitBackdropFilter: 'blur(18px)',
+       zIndex: 100000,
+       display: 'flex',
+       alignItems: 'center',
+       justifyContent: 'center',
+       padding: '20px',
+       boxSizing: 'border-box',
+       direction: 'rtl',
+       animation: 'adminModalBackdropIn 0.25s ease forwards'
+     }}
+   >
+     <div 
+       onClick={(e) => e.stopPropagation()}
+       style={{
+         width: '100%',
+         maxWidth: '430px',
+         maxHeight: '88vh',
+         overflowY: 'auto',
+         backgroundColor: 'var(--card-bg-normal)',
+         border: '1px solid var(--border-line)',
+         borderRadius: '24px',
+         padding: '24px 20px',
+         boxShadow: '0 25px 60px rgba(0, 0, 0, 0.45)',
+         display: 'flex',
+         flexDirection: 'column',
+         gap: '18px',
+         textAlign: 'right',
+         position: 'relative',
+         animation: 'adminModalCardIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards'
+       }}
+     >
+       {/* رأس النافذة */}
+       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-line)', paddingBottom: '14px' }}>
+         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+           <span style={{ fontSize: '12px', color: 'var(--primary-color)', fontWeight: 'bold' }}>
+             {modalDraft.isFixed ? (activeGroup === 'X' && modalDraft.targetIds?.length > 1 ? `📌 محاضرة أساسية موحدة (${modalDraft.groups.join(', ')})` : '📌 محاضرة أساسية في الجدول') : '✨ حدث إضافي مخصص'}
+           </span>
+           <h3 style={{ margin: 0, fontSize: '20px', color: 'var(--text-pure)', fontWeight: 'bold' }}>
+             {modalDraft.name}
+           </h3>
+         </div>
+
+         <button 
+           onClick={closeSubjectModal}
+           style={{
+             width: '34px', height: '34px', borderRadius: '50%',
+             backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)',
+             border: '1px solid var(--border-line)', cursor: 'pointer',
+             display: 'flex', alignItems: 'center', justifyContent: 'center',
+             fontSize: '14px', fontWeight: 'bold', WebkitTapHighlightColor: 'transparent'
+           }}
+         >
+           ✕
+         </button>
+       </div>
+
+       {/* حالة الظهور للمواد الأساسية أو زر الحذف للمواد الإضافية */}
+       {modalDraft.isFixed ? (
+         <div 
+           onClick={() => setModalDraft(prev => ({ ...prev, isHidden: !prev.isHidden }))}
+           style={{
+             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+             padding: '12px 16px', borderRadius: '14px',
+             backgroundColor: modalDraft.isHidden ? 'rgba(239, 68, 68, 0.1)' : 'var(--card-bg-locked)',
+             border: modalDraft.isHidden ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid var(--border-line)',
+             cursor: 'pointer', transition: 'all 0.25s ease'
+           }}
+         >
+           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+             <span style={{ fontSize: '14px', fontWeight: 'bold', color: modalDraft.isHidden ? '#ef4444' : 'var(--text-pure)' }}>
+               {modalDraft.isHidden ? '🚫 المحاضرة مخفية عن الطلاب' : '👁️ المحاضرة مرئية للطلاب'}
+             </span>
+             <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+               اضغط لتبديل حالة ظهور هذه المحاضرة
+             </span>
+           </div>
+           <div style={{
+             padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold',
+             backgroundColor: modalDraft.isHidden ? '#10b981' : '#ef4444', color: '#fff'
+           }}>
+             {modalDraft.isHidden ? 'إظهار 👁️' : 'إخفاء 🚫'}
+           </div>
+         </div>
+       ) : (
+         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+           <button 
+             onClick={handleDeleteFromModal}
+             style={{
+               backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#ef4444',
+               border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '10px',
+               padding: '8px 14px', fontSize: '13px', fontWeight: 'bold',
+               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+             }}
+           >
+             🗑️ حذف هذا الحدث نهائياً
+           </button>
+         </div>
+       )}
+
+       {/* الكروبات المشمولة */}
+       <div>
+         <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>
+           الكروبات المشمولة {modalDraft.isFixed && '(ثابتة من النظام)'}
+         </div>
+         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', opacity: modalDraft.isFixed ? 0.65 : 1, pointerEvents: modalDraft.isFixed ? 'none' : 'auto' }}>
+           {groupOptions.map(grp => {
+             const isSelected = modalDraft.groups && modalDraft.groups.includes(grp);
+             const isShared = !modalDraft.groups || modalDraft.groups.length === 0;
+             const isBtnActive = isSelected || isShared;
+             return (
+               <div 
+                 key={grp} 
+                 onClick={() => !modalDraft.isFixed && toggleDraftGroup(grp)} 
+                 style={{ 
+                   flex: 1, minWidth: '65px', textAlign: 'center',
+                   padding: '8px 10px', borderRadius: '10px', fontSize: '13px', fontWeight: 'bold', 
+                   cursor: modalDraft.isFixed ? 'not-allowed' : 'pointer', 
+                   backgroundColor: isBtnActive ? 'var(--primary-color)' : 'var(--card-bg-locked)', 
+                   color: isBtnActive ? '#fff' : 'var(--text-muted)', 
+                   border: isBtnActive ? '1px solid var(--primary-color)' : '1px solid var(--border-line)',
+                   transition: 'all 0.2s ease'
+                 }}
+               >
+                 كروب {grp}
+               </div>
+             )
+           })}
+         </div>
+       </div>
+
+       {/* نوع الحدث واختيار المادة */}
+       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+         <div>
+           <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>نوع الحدث</div>
+           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+             {(modalDraft.isFixed ? [modalDraft.originalType, "امتحان"] : dynamicEventTypes).map(t => {
+               const isTypeActive = modalDraft.type === t;
+               return (
+                 <div 
+                   key={t}
+                   onClick={() => setModalDraft(prev => ({ ...prev, type: t }))}
+                   style={{
+                     flex: 1, minWidth: '75px', textAlign: 'center',
+                     padding: '9px 12px', borderRadius: '10px', fontSize: '13px', fontWeight: 'bold',
+                     cursor: 'pointer',
+                     backgroundColor: isTypeActive ? (t === 'امتحان' ? '#ef4444' : 'var(--primary-color)') : 'var(--card-bg-locked)',
+                     color: isTypeActive ? '#fff' : 'var(--text-pure)',
+                     border: isTypeActive ? `1px solid ${t === 'امتحان' ? '#ef4444' : 'var(--primary-color)'}` : '1px solid var(--border-line)',
+                     transition: 'all 0.2s ease'
+                   }}
+                 >
+                   {t}
+                 </div>
+               );
+             })}
+           </div>
+         </div>
+
+         {!modalDraft.isFixed && (
+           <div>
+             <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>اختر المادة</div>
+             <select 
+               value={modalDraft.name} 
+               onChange={(e) => setModalDraft(prev => ({ ...prev, name: e.target.value }))} 
+               style={{
+                 width: '100%', padding: '12px 14px', borderRadius: '12px', 
+                 backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', 
+                 border: '1px solid var(--border-line)', fontSize: '15px', fontWeight: 'bold', outline: 'none'
+               }}
+             >
+               {courseSubjectsList.map(s => <option key={s} value={s}>{s}</option>)}
+             </select>
+           </div>
+         )}
+       </div>
+
+       {/* تفاصيل وملاحظات المحاضرة */}
+       <div>
+         <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>تفاصيل أو ملاحظات للطلاب</div>
+         <textarea 
+           placeholder="اكتب محتوى المحاضرة، رقم القاعة، أو تفاصيل الامتحان/الواجب هنا..." 
+           value={modalDraft.content || ''} 
+           onChange={(e) => setModalDraft(prev => ({ ...prev, content: e.target.value }))} 
+           style={{ 
+             padding: '14px', borderRadius: '14px', border: '1px solid var(--border-line)', 
+             backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', 
+             fontFamily: 'inherit', resize: 'vertical', minHeight: '95px', fontSize: '14px', 
+             outline: 'none', width: '100%', boxSizing: 'border-box', lineHeight: '1.6'
+           }} 
+         />
+       </div>
+
+       {/* أزرار الحفظ والإلغاء للمحاضرة */}
+       <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+         <button 
+           onClick={handleSaveSubjectModal}
+           style={{
+             flex: 2, backgroundColor: 'var(--primary-color)', color: '#fff',
+             border: 'none', borderRadius: '12px', padding: '14px',
+             fontSize: '15px', fontWeight: 'bold', cursor: 'pointer',
+             boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)', WebkitTapHighlightColor: 'transparent'
+           }}
+         >
+           حفظ التغييرات للمحاضرة ✓
+         </button>
+         <button 
+           onClick={closeSubjectModal}
+           style={{
+             flex: 1, backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-muted)',
+             border: '1px solid var(--border-line)', borderRadius: '12px', padding: '14px',
+             fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', WebkitTapHighlightColor: 'transparent'
+           }}
+         >
+           إلغاء
+         </button>
+       </div>
+
+     </div>
+   </div>,
+   document.body
+ ) : null}
+ </>
 );
 }

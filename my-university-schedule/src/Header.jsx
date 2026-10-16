@@ -36,25 +36,51 @@ const BellIcon = ({ isSubscribed }) => {
   );
 };
 
-// 🌟 المكون الجديد: أزرار اختيار الكروب 🌟
+// 🌟 المكون المحدث: أزرار اختيار الكروب (الشفافة + سلايدر) 🌟
 const GroupSelector = ({ activeGroup, setActiveGroup, userRole }) => {
-  const groups = ['A', 'B', 'C', 'D'];
+  // إضافة كروب X للمشرف العام فقط
+  // الترتيب هنا مع اتجاه RTL يجعل A في أقصى اليسار بجانب زر الإشعارات، وتتسلسل باقي الأزرار لليمين (D, C, B, A)
+  const groups = userRole === 'super_admin' ? ['X', 'D', 'C', 'B', 'A'] : ['D', 'C', 'B', 'A'];
   
-  // دالة لمعرفة ما إذا كان الزر مقفلاً (مثلاً: مشرف A لا يمكنه ضغط B, C, D)
+  // دالة لمعرفة ما إذا كان الزر مقفلاً 
   const isGroupDisabled = (group) => {
     if (!userRole || userRole === 'student' || userRole === 'super_admin') return false;
     return userRole !== `admin_${group.toLowerCase()}`;
   };
 
+  // تحديد الموقع الحالي للسلايدر
+  let activeIndex = groups.indexOf(activeGroup);
+  if (activeIndex === -1) activeIndex = groups.indexOf('A') !== -1 ? groups.indexOf('A') : 0;
+
   return (
     <div style={{
+      position: 'relative',
       display: 'flex',
-      backgroundColor: 'var(--card-bg-locked)',
-      borderRadius: '8px',
+      direction: 'rtl', // ضمان تطابق الترتيب وحساب السلايدر من اليمين لليسار بدون معاكسة
+      alignItems: 'center',
+      backgroundColor: 'var(--card-bg-locked)', // خلفية بسيطة وهادئة تناسب الهيدر
+      borderRadius: '20px', // حواف دائرية متناسقة مع شكل التحديد الدائري
       padding: '3px',
-      border: '1px solid var(--border-line)',
-      position: 'relative'
+      height: '32px', // نفس ارتفاع أزرار الأيقونات في الهيدر للمحاذاة التامة
+      boxSizing: 'border-box',
+      border: '1px solid var(--border-line)', // الإبقاء على البوردر فقط
+      gap: '2px'
     }}>
+      
+      {/* 🌟 السلايدر المتحرك في الخلفية 🌟 */}
+      <div style={{
+        position: 'absolute',
+        top: '2px',
+        width: '26px',
+        height: '26px',
+        right: `calc(3px + ${activeIndex} * 28px)`, // معادلة دقيقة تمنع الانعكاس وتضمن التمركز الصحيح
+        backgroundColor: 'var(--primary-color)',
+        borderRadius: '50%', // تحديد على شكل دائرة
+        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.18)',
+        transition: 'right 0.35s cubic-bezier(0.25, 1, 0.5, 1)', // أنميشن سلايد خفيف وناعم جداً
+        zIndex: 0
+      }} />
+
       {groups.map((group) => {
         const isActive = activeGroup === group;
         const disabled = isGroupDisabled(group);
@@ -63,17 +89,25 @@ const GroupSelector = ({ activeGroup, setActiveGroup, userRole }) => {
             key={group}
             onClick={() => !disabled && setActiveGroup(group)}
             style={{
-              background: isActive ? 'var(--primary-color)' : 'transparent',
+              position: 'relative',
+              zIndex: 1, // ليكون الحرف فوق السلايدر
+              background: 'transparent',
               color: isActive ? '#fff' : (disabled ? 'var(--text-muted)' : 'var(--text-pure)'),
               border: 'none',
-              borderRadius: '6px',
-              padding: '2px 10px',
-              fontSize: '13px',
+              borderRadius: '50%', // دائري بالكامل
+              width: '26px', // حجم متناسق وأنيق داخل هيدر الـ 32px
+              height: '26px', 
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '13px', // حجم خط متوازن مع الدائرة
               fontWeight: 'bold',
+              fontFamily: 'sans-serif',
+              lineHeight: 1,
               cursor: disabled ? 'not-allowed' : 'pointer',
-              transition: 'all 0.3s ease',
-              opacity: disabled && !isActive ? 0.4 : 1,
-              fontFamily: 'monospace',
+              transition: 'color 0.25s ease, transform 0.2s ease',
+              opacity: disabled && !isActive ? 0.3 : 1,
               WebkitTapHighlightColor: 'transparent'
             }}
           >

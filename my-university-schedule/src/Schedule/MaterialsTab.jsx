@@ -4,6 +4,14 @@ import { ref, set, remove } from 'firebase/database';
 import { database } from '../firebase';
 import localforage from 'localforage';
 
+// 🌟 استيراد محركات القراءة محلياً لضمان العمل بدون إنترنت 100% 🌟
+import * as pdfjsLib from 'pdfjs-dist/build/pdf';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
+import JSZip from 'jszip';
+import mammoth from 'mammoth';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
 // تهيئة قاعدة البيانات المحلية داخل Versa لحفظ الملفات الضخمة بدون إنترنت
 const offlineStore = localforage.createInstance({
   name: 'VersaOfflineVault',
@@ -23,11 +31,13 @@ const TrashIcon = () => (
   </svg>
 );
 
-// --- 🧠 دوال معالجة الروابط والتعرف على صيغ الملفات ---
+// --- 🧠 دوال معالجة الروابط والتعرف الدقيق على البصمة الرقمية للملفات ---
 const extractDriveFileId = (url) => {
   if (!url) return null;
   const patterns = [
     /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /\/presentation\/d\/([a-zA-Z0-9_-]+)/,
+    /\/document\/d\/([a-zA-Z0-9_-]+)/,
     /\/d\/([a-zA-Z0-9_-]+)/,
     /[?&]id=([a-zA-Z0-9_-]+)/
   ];
@@ -41,7 +51,7 @@ const extractDriveFileId = (url) => {
 const getDirectDownloadUrl = (url) => {
   const fileId = extractDriveFileId(url);
   if (fileId) {
-    return `https://drive.google.com/uc?export=download&id=${fileId}`;
+    return `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
   }
   return url;
 };
@@ -57,29 +67,38 @@ const getOnlineEmbedUrl = (url, fileType) => {
   return url;
 };
 
-// فحص البصمة الرقمية للملف (Magic Bytes) والامتداد لتحديد نوعه بدقة
+// 🌟 الفحص الجذري: الأولوية القصوى للبصمة الرقمية الحقيقية (Magic Bytes) وليس لاسم الملف 🌟
 const detectFileType = async (blob, fileName = '', url = '') => {
-  const combined = `${fileName} ${url}`.toLowerCase();
-  const mime = (blob?.type || '').toLowerCase();
-
-  if (mime.includes('pdf') || combined.includes('.pdf')) return 'pdf';
-  if (mime.includes('word') || mime.includes('officedocument.word') || combined.match(/\.(docx|doc)\b/)) return 'word';
-  if (mime.includes('presentation') || mime.includes('powerpoint') || combined.match(/\.(pptx|ppt)\b/)) return 'ppt';
-
   if (blob) {
     try {
-      const headerBuffer = await blob.slice(0, 4).arrayBuffer();
+      const headerBuffer = await blob.slice(0, 8).arrayBuffer();
       const bytes = new Uint8Array(headerBuffer);
-      // بصمة ملفات PDF هي %PDF (25 50 44 46)
+
+      // 1. إذا كانت البصمة %PDF (25 50 44 46) فهو قطعاً ملف PDF حتى لو كان اسمه بوربوينت!
       if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
         return 'pdf';
       }
-      // بصمة ملفات الأوفيس الحديثة (ZIP Container: 50 4B 03 04)
+
+      // 2. إذا كانت البصمة PK (50 4B 03 04) فهو حاوية Office Open XML حديثة (.pptx أو .docx)
       if (bytes[0] === 0x50 && bytes[1] === 0x4B) {
-        return combined.includes('ppt') ? 'ppt' : 'word';
+        const zip = await JSZip.loadAsync(blob);
+        if (zip.files['ppt/presentation.xml']) return 'ppt';
+        if (zip.files['word/document.xml']) return 'word';
       }
-    } catch (e) { /* fallback to pdf */ }
+
+      // 3. بصمة ملفات الأوفيس القديمة جداً (D0 CF 11 E0 - Binary OLE2 مثل .ppt أو .doc القديم)
+      if (bytes[0] === 0xD0 && bytes[1] === 0xCF && bytes[2] === 0x11 && bytes[3] === 0xE0) {
+        return 'legacy_office';
+      }
+    } catch (e) {
+      console.error('Magic bytes detection error:', e);
+    }
   }
+
+  // للروابط الأونلاين فقط (في وضع الزائر حيث لا يوجد Blob)
+  const combined = `${fileName} ${url}`.toLowerCase();
+  if (combined.match(/\.(docx|doc)\b/)) return 'word';
+  if (combined.match(/\.(pptx|ppt)\b/) || combined.includes('/presentation/')) return 'ppt';
   return 'pdf';
 };
 
@@ -92,34 +111,18 @@ const formatFilesCount = (count) => {
 };
 
 // =========================================================================
-// 🖥️ عارض الملفات الداخلي بملء الشاشة (تم حل مشكلة التحميل الإجباري في الهاتف)
+// 🖥️ محركات العرض المحلية بدون إنترنت (PDF + Word + PowerPoint مع الصور)
 // =========================================================================
 async function renderOfflineOfficeFile(blob, fileType) {
   const arrayBuffer = await blob.arrayBuffer();
 
   if (fileType === 'word') {
-    if (!window.mammoth) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
-        s.onload = res; s.onerror = rej;
-        document.head.appendChild(s);
-      });
-    }
-    const result = await window.mammoth.convertToHtml({ arrayBuffer });
-    return `<div style="max-width:800px;margin:0 auto;background:#fff;color:#111;padding:30px;border-radius:12px;line-height:1.8;direction:auto;">${result.value}</div>`;
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+    return `<div style="max-width:800px;margin:0 auto;background:#fff;color:#111;padding:24px;border-radius:12px;line-height:1.8;direction:auto;font-size:15px;">${result.value || 'المستند فارغ'}</div>`;
   }
 
   if (fileType === 'ppt') {
-    if (!window.JSZip) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-        s.onload = res; s.onerror = rej;
-        document.head.appendChild(s);
-      });
-    }
-    const zip = await window.JSZip.loadAsync(arrayBuffer);
+    const zip = await JSZip.loadAsync(arrayBuffer);
     const slideFiles = Object.keys(zip.files)
       .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
       .sort((a, b) => {
@@ -128,22 +131,61 @@ async function renderOfflineOfficeFile(blob, fileType) {
         return numA - numB;
       });
 
-    let slidesHtml = '<div style="display:flex;flex-direction:column;gap:20px;max-width:850px;margin:0 auto;">';
+    if (slideFiles.length === 0) {
+      throw new Error('NO_SLIDES_FOUND');
+    }
+
+    let slidesHtml = '<div style="display:flex;flex-direction:column;gap:18px;max-width:850px;margin:0 auto;">';
+    
     for (let i = 0; i < slideFiles.length; i++) {
-      const xmlText = await zip.file(slideFiles[i]).async('string');
+      const slidePath = slideFiles[i];
+      const slideNum = slidePath.match(/slide(\d+)\.xml/)[1];
+      const xmlText = await zip.file(slidePath).async('string');
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
-      const textNodes = xmlDoc.getElementsByTagName('a:t');
+
+      // 1. استخراج النصوص مرتبة حسب الفقرات (<a:p>)
+      const pNodes = xmlDoc.getElementsByTagName('a:p');
       let paragraphs = [];
-      for (let j = 0; j < textNodes.length; j++) {
-        if (textNodes[j].textContent.trim()) {
-          paragraphs.push(textNodes[j].textContent);
+      for (let p = 0; p < pNodes.length; p++) {
+        const tNodes = pNodes[p].getElementsByTagName('a:t');
+        let line = '';
+        for (let t = 0; t < tNodes.length; t++) {
+          line += tNodes[t].textContent;
+        }
+        if (line.trim()) paragraphs.push(line.trim());
+      }
+
+      // 2. استخراج الصور المدمجة داخل الشريحة إن وجدت
+      let imagesHtml = '';
+      const relsPath = `ppt/slides/_rels/slide${slideNum}.xml.rels`;
+      if (zip.files[relsPath]) {
+        const relsXml = await zip.file(relsPath).async('string');
+        const relsDoc = parser.parseFromString(relsXml, 'application/xml');
+        const relationships = relsDoc.getElementsByTagName('Relationship');
+        for (let r = 0; r < relationships.length; r++) {
+          const target = relationships[r].getAttribute('Target') || '';
+          if (target.includes('../media/')) {
+            const mediaPath = `ppt/media/${target.split('../media/')[1]}`;
+            if (zip.files[mediaPath] && /\.(png|jpg|jpeg|gif|webp)$/i.test(mediaPath)) {
+              const imgBase64 = await zip.file(mediaPath).async('base64');
+              const ext = mediaPath.split('.').pop().toLowerCase();
+              const mime = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+              imagesHtml += `<img src="data:${mime};base64,${imgBase64}" style="max-width:100%;border-radius:10px;margin-top:12px;display:block;margin-left:auto;margin-right:auto;" />`;
+            }
+          }
         }
       }
+
       slidesHtml += `
-        <div style="background:#27272a;border:1px solid #3f3f46;border-radius:16px;padding:28px;box-shadow:0 8px 20px rgba(0,0,0,0.3);direction:auto;">
-          <div style="color:#38bdf8;font-size:12px;font-weight:bold;margin-bottom:12px;">شريحة ${i + 1}</div>
-          <div style="font-size:16px;line-height:1.7;color:#f4f4f5;">${paragraphs.join('<br/>') || '...'}</div>
+        <div style="background:#1e1e24;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:22px;box-shadow:0 8px 20px rgba(0,0,0,0.25);direction:auto;">
+          <div style="color:var(--primary-color);font-size:12px;font-weight:bold;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:6px;">
+            شريحة ${i + 1} من ${slideFiles.length}
+          </div>
+          <div style="font-size:15px;line-height:1.75;color:#f4f4f5;">
+            ${paragraphs.length > 0 ? paragraphs.map(p => `<div style="margin-bottom:8px;">• ${p}</div>`).join('') : ''}
+          </div>
+          ${imagesHtml}
         </div>
       `;
     }
@@ -152,27 +194,15 @@ async function renderOfflineOfficeFile(blob, fileType) {
   }
 }
 
-// محرك داخلي لمنع متصفح الهاتف من تنزيل الـ PDF المحفوظ محلياً
 async function renderOfflinePdfFile(blob, containerElement) {
-  if (!window['pdfjs-dist/build/pdf']) {
-    await new Promise((res, rej) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
-      s.onload = res; s.onerror = rej;
-      document.head.appendChild(s);
-    });
-  }
-  const pdfjsLib = window['pdfjs-dist/build/pdf'];
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-
-  const url = URL.createObjectURL(blob);
-  const pdf = await pdfjsLib.getDocument(url).promise;
+  const arrayBuffer = await blob.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   
   containerElement.innerHTML = ''; 
   
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: window.innerWidth < 768 ? 1.1 : 1.5 });
+    const viewport = page.getViewport({ scale: window.innerWidth < 768 ? 1.3 : 1.6 });
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width; 
     canvas.height = viewport.height;
@@ -180,40 +210,68 @@ async function renderOfflinePdfFile(blob, containerElement) {
     canvas.style.maxWidth = '100%';
     canvas.style.marginBottom = '12px'; 
     canvas.style.borderRadius = '8px';
+    canvas.style.backgroundColor = '#fff';
     containerElement.appendChild(canvas);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
   }
-  URL.revokeObjectURL(url);
 }
 
 const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
   const [officeHtml, setOfficeHtml] = useState('');
   const [isParsing, setIsParsing] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const pdfContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (!viewerData) return;
 
-    if (viewerData.isOffline && viewerData.blob) {
+    let isCancelled = false;
+
+    const processOfflineDocument = async () => {
+      if (!viewerData.isOffline || !viewerData.blob) return;
+
       setIsParsing(true);
-      if (viewerData.fileType === 'word' || viewerData.fileType === 'ppt') {
-        renderOfflineOfficeFile(viewerData.blob, viewerData.fileType)
-          .then(html => { setOfficeHtml(html); setIsParsing(false); })
-          .catch(() => { setOfficeHtml('<div style="text-align:center;padding:40px;color:#ef4444;">تعذر تحليل هيكلية هذا الملف محلياً</div>'); setIsParsing(false); });
-      } else if (viewerData.fileType === 'pdf') {
-        // ننتظر قليلاً لضمان ظهور الـ Container في الشاشة
-        setTimeout(() => {
+      setOfficeHtml('');
+
+      try {
+        // فحص البصمة الحقيقية للملف المحفوظ قبل فتحه مباشرة (حتى لو كان مخزناً قديماً بتصنيف خاطئ)
+        const actualType = await detectFileType(viewerData.blob, viewerData.title, '');
+
+        if (actualType === 'pdf') {
           if (pdfContainerRef.current) {
-            renderOfflinePdfFile(viewerData.blob, pdfContainerRef.current)
-              .then(() => setIsParsing(false))
-              .catch(() => {
-                pdfContainerRef.current.innerHTML = '<div style="color:red;padding:20px;text-align:center;">تعذر قراءة PDF محلياً</div>';
-                setIsParsing(false);
-              });
+            await renderOfflinePdfFile(viewerData.blob, pdfContainerRef.current);
           }
-        }, 50);
+        } else if (actualType === 'word' || actualType === 'ppt') {
+          const html = await renderOfflineOfficeFile(viewerData.blob, actualType);
+          if (!isCancelled) setOfficeHtml(html);
+        } else if (actualType === 'legacy_office') {
+          if (!isCancelled) {
+            setOfficeHtml('<div style="text-align:center;padding:40px;color:#f59e0b;">هذا الملف بصيغة أوفيس قديمة (97-2003). يرجى رفعه بصيغة حديثة (PPTX أو PDF) ليعمل بدون إنترنت.</div>');
+          }
+        }
+      } catch (err) {
+        console.error('Offline render error:', err);
+        if (!isCancelled) {
+          setOfficeHtml('<div style="text-align:center;padding:40px;color:#ef4444;">تعذر قراءة الملف محلياً. احذف الملف بالضغط المطول ثم أعد تحميله.</div>');
+        }
+      } finally {
+        if (!isCancelled) setIsParsing(false);
       }
-    }
+    };
+
+    processOfflineDocument();
+    return () => { isCancelled = true; };
   }, [viewerData]);
 
   if (!viewerData) return null;
@@ -273,16 +331,36 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
         {viewerData.isOffline ? (
           <>
             {isParsing && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 5 }}>
                 <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255, 255, 255, 0.2)', borderTopColor: 'var(--primary-color)', borderRadius: '50%', animation: 'versaSpin 0.65s linear infinite' }} />
               </div>
             )}
-            {viewerData.fileType === 'pdf' ? (
-              <div ref={pdfContainerRef} style={{ padding: '15px', maxWidth: '900px', margin: '0 auto', display: isParsing ? 'none' : 'block' }} />
-            ) : (
-              <div dangerouslySetInnerHTML={{ __html: officeHtml }} style={{ padding: '20px', boxSizing: 'border-box', color: '#f4f4f5', display: isParsing ? 'none' : 'block' }} />
+            {/* حاوية PDF المحلية */}
+            <div 
+              ref={pdfContainerRef} 
+              style={{ 
+                padding: '15px', maxWidth: '900px', margin: '0 auto', 
+                display: (!isParsing && !officeHtml) ? 'block' : 'none' 
+              }} 
+            />
+            {/* حاوية PowerPoint / Word المحلية */}
+            {officeHtml && !isParsing && (
+              <div 
+                dangerouslySetInnerHTML={{ __html: officeHtml }} 
+                style={{ padding: '20px', boxSizing: 'border-box', color: '#f4f4f5' }} 
+              />
             )}
           </>
+        ) : !isOnline ? (
+          // منع ظهور شاشة الديناصور في وضع الزائر عند انقطاع الإنترنت
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '25px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--text-pure)', marginBottom: '8px' }}>
+              لا يوجد اتصال بالإنترنت
+            </div>
+            <div style={{ fontSize: '13px', maxWidth: '300px', lineHeight: '1.6' }}>
+              وضع الزائر يتطلب اتصالاً بالإنترنت لعرض الملفات. سجل دخولك وقم بتحميل الملزمة لتتمكن من فتحها بدون إنترنت.
+            </div>
+          </div>
         ) : (
           <iframe
             src={viewerData.onlineUrl}
@@ -310,23 +388,19 @@ export default function MaterialsTab({
 }) {
   const canEdit = (isAdminMode || (userRole && userRole !== 'student')) && !selectedArchive;
 
-  // 🌟 حالات التخزين المحلي والتحميل والضغط المطول 🌟
-  const [downloadedMap, setDownloadedMap] = useState({}); // { [matId]: true }
-  const [downloadingMap, setDownloadingMap] = useState({}); // { [matId]: true }
-  const [deleteOverlayId, setDeleteOverlayId] = useState(null); // معرف البطاقة التي ظهر عليها زر الحذف
-  const [viewerData, setViewerData] = useState(null); // بيانات الملف المفتوح بملء الشاشة
+  const [downloadedMap, setDownloadedMap] = useState({});
+  const [downloadingMap, setDownloadingMap] = useState({});
+  const [deleteOverlayId, setDeleteOverlayId] = useState(null);
+  const [viewerData, setViewerData] = useState(null);
 
-  // مراجع للتحكم بالضغط المطول (Long Press)
   const longPressTimer = useRef(null);
   const isLongPressTriggered = useRef(false);
 
-  // حالات نافذة الأدمن (إضافة / تعديل / حذف من السيرفر)
   const [modalState, setModalState] = useState({ isOpen: false, mode: null, subject: null, item: null });
   const [matName, setMatName] = useState('');
   const [matUrl, setMatUrl] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // 1. فحص الملفات المحملة مسبقاً في حساب المستخدم الحالي فور فتح التبويب
   useEffect(() => {
     let isMounted = true;
     const checkUserSavedFiles = async () => {
@@ -353,7 +427,6 @@ export default function MaterialsTab({
     return () => { isMounted = false; };
   }, [user, activeMaterialsData]);
 
-  // إخفاء خيار الحذف عند الضغط في أي مكان فارغ
   useEffect(() => {
     const clearOverlay = () => setDeleteOverlayId(null);
     window.addEventListener('click', clearOverlay);
@@ -371,6 +444,10 @@ export default function MaterialsTab({
     if (!user) return;
     if (downloadingMap[mat.id]) return;
 
+    if (!navigator.onLine) {
+      return showToast('لا يوجد اتصال بالإنترنت لتحميل الملف', 'error');
+    }
+
     setDownloadingMap(prev => ({ ...prev, [mat.id]: true }));
 
     try {
@@ -378,11 +455,12 @@ export default function MaterialsTab({
       const targetUrl = getDirectDownloadUrl(mat.url);
       
       const fetchCandidates = [
-        // 1. خادم Vercel الخاص بك (مضمون 100% وسريع جداً)
+        // 1. خادم Vercel الخاص بك
         fileId ? `/api/drive?id=${fileId}` : null,
-        // 2. بروكسي بديل يعمل على Localhost للروابط العادية
+        // 2. إذا كان العرض التقديمي Google Slides أو مستند على Localhost نحوله لـ PDF ليعمل بأعلى دقة
+        fileId ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://docs.google.com/presentation/d/${fileId}/export/pdf`)}` : null,
+        // 3. بروكسي بديل للروابط المباشرة على Localhost
         `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-        // 3. في حال كان الملف Google Doc/Slide على Localhost
         fileId ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://docs.google.com/document/d/${fileId}/export?format=pdf`)}` : null
       ].filter(Boolean);
 
@@ -393,10 +471,16 @@ export default function MaterialsTab({
           const response = await fetch(candidate);
           if (response.ok) {
             const blob = await response.blob();
-            // التأكد من أن الملف المستلم حقيقي وليس صفحة خطأ فارغة
             if (blob.size > 500 && !blob.type.includes('text/html')) {
-              fetchedBlob = blob;
-              break;
+              // التأكد من أن البصمة الرقمية للملف صالحة (PDF أو Office ZIP)
+              const headerBuffer = await blob.slice(0, 4).arrayBuffer();
+              const bytes = new Uint8Array(headerBuffer);
+              const isPdf = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+              const isZip = bytes[0] === 0x50 && bytes[1] === 0x4B;
+              if (isPdf || isZip) {
+                fetchedBlob = blob;
+                break;
+              }
             }
           }
         } catch (err) {
@@ -444,7 +528,7 @@ export default function MaterialsTab({
           setViewerData({
             title: mat.name,
             isOffline: true,
-            blob: record.blob, // إرسال بيانات الملف ليتم رسمها
+            blob: record.blob,
             fileType: record.fileType || 'pdf'
           });
           return;
@@ -454,7 +538,7 @@ export default function MaterialsTab({
       }
     }
 
-    // 2. في وضع الضيف (أو في حال عدم وجود الملف محلياً) -> يفتح عبر الإنترنت بملء الشاشة
+    // 2. في وضع الضيف -> يفتح عبر الإنترنت بملء الشاشة
     const guessedType = await detectFileType(null, mat.name, mat.url);
     const embedUrl = getOnlineEmbedUrl(mat.url, guessedType);
     setViewerData({
@@ -466,15 +550,11 @@ export default function MaterialsTab({
   };
 
   const handleCloseViewer = () => {
-    if (viewerData?.blobUrl) {
-      URL.revokeObjectURL(viewerData.blobUrl);
-    }
     setViewerData(null);
   };
 
   // --- 🗑️ دوال الضغط المطول وحذف الملف من الحساب ---
   const handleCardPressStart = (matId) => {
-    // الضغط المطول يعمل فقط للمستخدم المسجل وعلى الملفات التي قام بتحميلها
     if (!user || !downloadedMap[matId] || downloadingMap[matId]) return;
 
     isLongPressTriggered.current = false;
@@ -510,7 +590,7 @@ export default function MaterialsTab({
     }
   };
 
-  // --- دوال الأدمن (إضافة / تعديل / حذف من قاعدة البيانات العامة) ---
+  // --- دوال الأدمن ---
   const openAddModal = (subjName, e) => {
     e.stopPropagation();
     setMatName('');
@@ -776,7 +856,6 @@ export default function MaterialsTab({
                           {/* حاوية الأزرار على اليسار */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                             
-                            {/* أزرار الأدمن للتعديل والحذف من السيرفر */}
                             {canEdit && (
                               <>
                                 <button
@@ -804,7 +883,6 @@ export default function MaterialsTab({
 
                             {/* 🌟 منطق الزر الذكي (ضيف vs مستخدم مسجل) 🌟 */}
                             {!user ? (
-                              // 1. وضع الضيف: يظهر زر "عرض" فقط ويعمل عبر الإنترنت
                               <button
                                 className="mat-clean-btn"
                                 onClick={(e) => handleOpenFullscreenViewer(mat, e)}
@@ -819,7 +897,6 @@ export default function MaterialsTab({
                                 عرض
                               </button>
                             ) : isDownloading ? (
-                              // 2. حالة جاري التحميل: دائرة تحميل نظيفة
                               <div style={{
                                 width: '64px', height: '31px', borderRadius: '9px',
                                 backgroundColor: 'rgba(255, 255, 255, 0.06)',
@@ -829,7 +906,6 @@ export default function MaterialsTab({
                                 <div className="versa-spinner" />
                               </div>
                             ) : isDownloaded ? (
-                              // 3. بعد انتهاء التحميل: يتحول الزر إلى "عرض" ويفتح بملء الشاشة بدون إنترنت
                               <button
                                 className="mat-clean-btn"
                                 onClick={(e) => handleOpenFullscreenViewer(mat, e)}
@@ -845,7 +921,6 @@ export default function MaterialsTab({
                                 عرض
                               </button>
                             ) : (
-                              // 4. الحالة الابتدائية للمستخدم المسجل: زر "تحميل" لحفظ الملف داخل Versa
                               <button
                                 className="mat-clean-btn"
                                 onClick={(e) => handleDownloadToAccount(mat, e)}
@@ -878,7 +953,7 @@ export default function MaterialsTab({
         );
       })}
 
-      {/* نافذة الأدمن المنبثقة للإضافة والتعديل والحذف من السيرفر */}
+      {/* نافذة الأدمن المنبثقة */}
       {modalState.isOpen && typeof document !== 'undefined' ? createPortal(
         <div 
           onClick={closeModal}

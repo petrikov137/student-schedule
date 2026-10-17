@@ -1,24 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+// المسار: src/Schedule/MaterialsTab.jsx
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ref, set, remove } from 'firebase/database';
 import { database } from '../firebase';
 import localforage from 'localforage';
 
-// 🌟 استيراد محركات القراءة محلياً داخل حزمة Vite لضمان العمل 100% دون إنترنت 🌟
 import * as pdfjsLib from 'pdfjs-dist/build/pdf';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import JSZip from 'jszip';
 import mammoth from 'mammoth';
+import { init as initPptxPreview } from 'pptx-preview';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
-// تهيئة قاعدة البيانات المحلية داخل Versa لحفظ الملفات الضخمة بدون إنترنت
 const offlineStore = localforage.createInstance({
   name: 'VersaOfflineVault',
   storeName: 'user_materials_blobs'
 });
 
-// --- 🎨 أيقونات النظام النظيفة (بدون أي ملصقات) ---
 const EditIcon = () => (
   <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#f59e0b" strokeWidth={2.2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -31,7 +30,6 @@ const TrashIcon = () => (
   </svg>
 );
 
-// --- 🧠 دوال معالجة الروابط والفحص الجذري لمحتوى الملفات ---
 const extractDriveFileId = (url) => {
   if (!url) return null;
   const patterns = [
@@ -48,14 +46,23 @@ const extractDriveFileId = (url) => {
   return null;
 };
 
-const isPresentationOrDocHint = (name = '', url = '') => {
+const isPresentationHint = (name = '', url = '') => {
   const combined = `${name} ${url}`.toLowerCase();
   return (
     combined.includes('/presentation/') ||
-    combined.includes('/document/') ||
-    /\.(pptx|ppt|docx|doc)\b/.test(combined) ||
+    /\.(pptx|ppt)\b/.test(combined) ||
     combined.includes('powerpoint') ||
-    combined.includes('بوربوينت')
+    combined.includes('بوربوينت') ||
+    combined.includes('slide')
+  );
+};
+
+const isPresentationOrDocHint = (name = '', url = '') => {
+  const combined = `${name} ${url}`.toLowerCase();
+  return (
+    isPresentationHint(name, url) ||
+    combined.includes('/document/') ||
+    /\.(docx|doc)\b/.test(combined)
   );
 };
 
@@ -82,7 +89,6 @@ const getOnlineEmbedUrl = (url, fileName = '') => {
   return url;
 };
 
-// 🌟 فحص البصمة الحقيقية وهيكلية الملف من الداخل قبل قبوله أو عرضه 🌟
 const inspectBlobContent = async (blob) => {
   if (!blob || blob.size < 64) {
     return { valid: false, reason: 'EMPTY_FILE' };
@@ -92,12 +98,10 @@ const inspectBlobContent = async (blob) => {
     const headerBuffer = await blob.slice(0, 8).arrayBuffer();
     const bytes = new Uint8Array(headerBuffer);
 
-    // 1. فحص بصمة PDF (%PDF-)
     if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
       return { valid: true, fileType: 'pdf', mime: 'application/pdf' };
     }
 
-    // 2. فحص بصمة Office Open XML الحديثة (PK\x03\x04) والتحقق من الملفات الداخلية
     if (bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04) {
       const zip = await JSZip.loadAsync(blob);
       if (zip.files['ppt/presentation.xml']) {
@@ -109,7 +113,6 @@ const inspectBlobContent = async (blob) => {
       return { valid: false, reason: 'UNSUPPORTED_ZIP_ARCHIVE' };
     }
 
-    // 3. فحص بصمة ملفات الأوفيس القديمة Binary OLE2 (.ppt / .doc 97-2003)
     if (bytes[0] === 0xD0 && bytes[1] === 0xCF && bytes[2] === 0x11 && bytes[3] === 0xE0) {
       return { valid: false, reason: 'LEGACY_BINARY_OFFICE' };
     }
@@ -128,181 +131,17 @@ const formatFilesCount = (count) => {
   return `${count} ملف`;
 };
 
-const escapeHtml = (str = '') =>
-  str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-
-// =========================================================================
-// 🖥️ محرك تحليل وعرض ملفات PPTX و DOCX دون إنترنت (يدعم النصوص، الجداول، الصور، والتنسيق)
-// =========================================================================
-async function renderOfflineOfficeFile(blob, fileType) {
+async function renderOfflineWordFile(blob) {
   const arrayBuffer = await blob.arrayBuffer();
-
-  if (fileType === 'word') {
-    const result = await mammoth.convertToHtml({ arrayBuffer });
-    return `
-      <div style="max-width:820px;margin:0 auto;background:#ffffff;color:#111827;padding:28px 24px;border-radius:14px;line-height:1.85;direction:auto;font-size:15px;box-shadow:0 10px 30px rgba(0,0,0,0.35);">
-        ${result.value || '<p style="text-align:center;color:#6b7280;">المستند لا يحتوي على نصوص قابلة للعرض</p>'}
-      </div>
-    `;
-  }
-
-  if (fileType === 'ppt') {
-    const zip = await JSZip.loadAsync(arrayBuffer);
-    const slideFiles = Object.keys(zip.files)
-      .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
-      .sort((a, b) => {
-        const numA = parseInt(a.match(/slide(\d+)\.xml/)[1], 10);
-        const numB = parseInt(b.match(/slide(\d+)\.xml/)[1], 10);
-        return numA - numB;
-      });
-
-    if (slideFiles.length === 0) {
-      throw new Error('NO_SLIDES_IN_PPTX');
-    }
-
-    const parser = new DOMParser();
-    let slidesHtml = '<div style="display:flex;flex-direction:column;gap:22px;max-width:900px;margin:0 auto;padding-bottom:30px;">';
-
-    for (let i = 0; i < slideFiles.length; i++) {
-      const slidePath = slideFiles[i];
-      const slideNum = slidePath.match(/slide(\d+)\.xml/)[1];
-      const xmlText = await zip.file(slidePath).async('string');
-      const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
-
-      // 1. بناء خريطة العلاقات (Relationships) للصور داخل الشريحة
-      const relMap = {};
-      const relsPath = `ppt/slides/_rels/slide${slideNum}.xml.rels`;
-      if (zip.files[relsPath]) {
-        const relsXml = await zip.file(relsPath).async('string');
-        const relsDoc = parser.parseFromString(relsXml, 'application/xml');
-        const relNodes = relsDoc.getElementsByTagName('Relationship');
-        for (let r = 0; r < relNodes.length; r++) {
-          const rId = relNodes[r].getAttribute('Id');
-          const target = relNodes[r].getAttribute('Target') || '';
-          if (rId && target.includes('media/')) {
-            const cleanMediaName = target.split('media/').pop();
-            relMap[rId] = `ppt/media/${cleanMediaName}`;
-          }
-        }
-      }
-
-      // 2. استخراج الأشكال النصية والعناوين (<p:sp>)
-      let titleHtml = '';
-      let bodyBlocksHtml = '';
-      const spNodes = xmlDoc.getElementsByTagName('p:sp');
-
-      for (let s = 0; s < spNodes.length; s++) {
-        const sp = spNodes[s];
-        const phNode = sp.getElementsByTagName('p:ph')[0];
-        const phType = phNode ? (phNode.getAttribute('type') || '') : '';
-        const isTitle = phType === 'title' || phType === 'ctrTitle' || (s === 0 && !titleHtml && phType !== 'body');
-
-        const pNodes = sp.getElementsByTagName('a:p');
-        let shapeLines = [];
-
-        for (let p = 0; p < pNodes.length; p++) {
-          const tNodes = pNodes[p].getElementsByTagName('a:t');
-          let lineText = '';
-          for (let t = 0; t < tNodes.length; t++) {
-            lineText += tNodes[t].textContent;
-          }
-          if (lineText.trim()) {
-            shapeLines.push(escapeHtml(lineText.trim()));
-          }
-        }
-
-        if (shapeLines.length > 0) {
-          if (isTitle && !titleHtml) {
-            titleHtml = `<h3 style="margin:0 0 14px 0;color:#38bdf8;font-size:19px;font-weight:bold;line-height:1.45;direction:auto;">${shapeLines.join('<br/>')}</h3>`;
-          } else {
-            bodyBlocksHtml += `
-              <div style="margin-bottom:12px;direction:auto;">
-                ${shapeLines.map(line => `<div style="margin-bottom:6px;font-size:15px;line-height:1.7;color:#f4f4f5;">• ${line}</div>`).join('')}
-              </div>
-            `;
-          }
-        }
-      }
-
-      // 3. استخراج الجداول (<a:tbl>) إن وجدت في الشريحة
-      let tablesHtml = '';
-      const tblNodes = xmlDoc.getElementsByTagName('a:tbl');
-      for (let tb = 0; tb < tblNodes.length; tb++) {
-        const trNodes = tblNodes[tb].getElementsByTagName('a:tr');
-        let rowsHtml = '';
-        for (let r = 0; r < trNodes.length; r++) {
-          const tcNodes = trNodes[r].getElementsByTagName('a:tc');
-          let cellsHtml = '';
-          for (let c = 0; c < tcNodes.length; c++) {
-            const tNodes = tcNodes[c].getElementsByTagName('a:t');
-            let cellText = '';
-            for (let t = 0; t < tNodes.length; t++) cellText += tNodes[t].textContent + ' ';
-            const cellStyle = r === 0
-              ? 'background:rgba(56,189,248,0.15);color:#38bdf8;font-weight:bold;'
-              : 'background:rgba(255,255,255,0.03);color:#e4e4e7;';
-            cellsHtml += `<td style="border:1px solid rgba(255,255,255,0.12);padding:8px 10px;font-size:13px;${cellStyle}">${escapeHtml(cellText.trim())}</td>`;
-          }
-          rowsHtml += `<tr>${cellsHtml}</tr>`;
-        }
-        if (rowsHtml) {
-          tablesHtml += `<div style="overflow-x:auto;margin:12px 0;"><table style="width:100%;border-collapse:collapse;direction:auto;">${rowsHtml}</table></div>`;
-        }
-      }
-
-      // 4. استخراج الصور المرتبطة بالشريحة
-      let imagesHtml = '';
-      const blipNodes = xmlDoc.getElementsByTagName('a:blip');
-      const usedMediaPaths = new Set();
-
-      for (let b = 0; b < blipNodes.length; b++) {
-        const embedId = blipNodes[b].getAttribute('r:embed');
-        const mediaPath = relMap[embedId];
-        if (mediaPath && zip.files[mediaPath] && !usedMediaPaths.has(mediaPath)) {
-          if (/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(mediaPath)) {
-            usedMediaPaths.add(mediaPath);
-            const base64 = await zip.file(mediaPath).async('base64');
-            const ext = mediaPath.split('.').pop().toLowerCase();
-            const mime = ext === 'jpg' ? 'image/jpeg' : ext === 'svg' ? 'image/svg+xml' : `image/${ext}`;
-            imagesHtml += `
-              <div style="margin-top:14px;text-align:center;">
-                <img src="data:${mime};base64,${base64}" style="max-width:100%;max-height:420px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);object-fit:contain;background:#fff;" />
-              </div>
-            `;
-          }
-        }
-      }
-
-      const hasContent = titleHtml || bodyBlocksHtml || tablesHtml || imagesHtml;
-
-      slidesHtml += `
-        <div style="background:linear-gradient(145deg, #1c1c22, #141418);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:24px 20px;box-shadow:0 10px 25px rgba(0,0,0,0.35);position:relative;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.07);">
-            <span style="color:var(--primary-color);font-size:12px;font-weight:bold;background:rgba(0,148,247,0.12);padding:4px 10px;border-radius:8px;">
-              شريحة ${i + 1} / ${slideFiles.length}
-            </span>
-          </div>
-          ${titleHtml}
-          ${bodyBlocksHtml}
-          ${tablesHtml}
-          ${imagesHtml}
-          ${!hasContent ? '<div style="color:#71717a;font-size:13px;text-align:center;padding:20px 0;">(شريحة رسومية أو فارغة)</div>' : ''}
-        </div>
-      `;
-    }
-
-    slidesHtml += '</div>';
-    return slidesHtml;
-  }
-
-  throw new Error('UNSUPPORTED_OFFICE_TYPE');
+  const result = await mammoth.convertToHtml({ arrayBuffer });
+  return `
+    <div style="max-width:820px;margin:0 auto;background:#ffffff;color:#111827;padding:28px 24px;border-radius:14px;line-height:1.85;direction:auto;font-size:15px;box-shadow:0 10px 30px rgba(0,0,0,0.35);">
+      ${result.value || '<p style="text-align:center;color:#6b7280;">المستند لا يحتوي على نصوص قابلة للعرض</p>'}
+    </div>
+  `;
 }
 
-// محرك عرض ملفات PDF (أو ملفات البوربوينت المحولة إلى PDF) كشرائح وصفحات عالية الدقة دون إنترنت
-async function renderOfflinePdfFile(blob, containerElement) {
+async function renderOfflinePdfDocument(blob, containerElement) {
   const arrayBuffer = await blob.arrayBuffer();
   const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
   const pdf = await loadingTask.promise;
@@ -310,7 +149,7 @@ async function renderOfflinePdfFile(blob, containerElement) {
   containerElement.innerHTML = '';
 
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const baseScale = window.innerWidth < 768 ? 1.2 : 1.5;
+  const baseScale = window.innerWidth < 768 ? 1.25 : 1.55;
 
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
@@ -340,15 +179,22 @@ async function renderOfflinePdfFile(blob, containerElement) {
   }
 }
 
-// =========================================================================
-// 🖥️ مكون العارض بملء الشاشة
-// =========================================================================
 const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
   const [officeHtml, setOfficeHtml] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const pdfContainerRef = useRef(null);
+
+  const [viewerMode, setViewerMode] = useState('pdf-scroll'); // 'slide-deck' | 'pptx-deck' | 'pdf-scroll' | 'word'
+  const [currentSlide, setCurrentSlide] = useState(1);
+  const [totalSlides, setTotalSlides] = useState(0);
+
+  const pdfScrollContainerRef = useRef(null);
+  const pdfSlideCanvasRef = useRef(null);
+  const pptxHostRef = useRef(null);
+  const pdfDocRef = useRef(null);
+  const pptxInstanceRef = useRef(null);
+  const touchStartXRef = useRef(null);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -361,6 +207,82 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
     };
   }, []);
 
+  const renderSinglePdfSlide = useCallback(async (pdfDoc, slideNum) => {
+    const canvas = pdfSlideCanvasRef.current;
+    if (!pdfDoc || !canvas) return;
+
+    const page = await pdfDoc.getPage(slideNum);
+    const unscaledViewport = page.getViewport({ scale: 1 });
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const maxW = Math.min(window.innerWidth - 24, 1100);
+    const maxH = Math.max(window.innerHeight - 135, 260);
+    const scaleToFit = Math.min(maxW / unscaledViewport.width, maxH / unscaledViewport.height);
+    const viewport = page.getViewport({ scale: Math.max(scaleToFit, 0.5) * dpr });
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = `${Math.round(viewport.width / dpr)}px`;
+    canvas.style.height = `${Math.round(viewport.height / dpr)}px`;
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    await page.render({
+      canvasContext: ctx,
+      viewport
+    }).promise;
+  }, []);
+
+  const syncPptxVisibleSlide = useCallback((slideIndexOneBased) => {
+    const host = pptxHostRef.current;
+    if (!host) return;
+
+    const wrapper = host.querySelector('.pptx-preview-wrapper') || host.firstElementChild;
+    if (!wrapper) return;
+
+    const slideNodes = Array.from(wrapper.children).filter(
+      el => el.tagName === 'SECTION' || el.tagName === 'DIV'
+    );
+
+    if (slideNodes.length > 0) {
+      slideNodes.forEach((node, idx) => {
+        node.style.display = idx === slideIndexOneBased - 1 ? 'block' : 'none';
+        node.style.margin = '0 auto';
+      });
+    }
+  }, []);
+
+  const goToSlide = useCallback(async (targetSlide) => {
+    if (totalSlides < 1) return;
+    const clamped = Math.max(1, Math.min(totalSlides, targetSlide));
+    setCurrentSlide(clamped);
+
+    if (viewerMode === 'slide-deck' && pdfDocRef.current) {
+      await renderSinglePdfSlide(pdfDocRef.current, clamped);
+    } else if (viewerMode === 'pptx-deck') {
+      if (pptxInstanceRef.current && typeof pptxInstanceRef.current.renderSingleSlide === 'function') {
+        pptxInstanceRef.current.renderSingleSlide(clamped - 1);
+      } else {
+        syncPptxVisibleSlide(clamped);
+      }
+    }
+  }, [totalSlides, viewerMode, renderSinglePdfSlide, syncPptxVisibleSlide]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!viewerData?.isOffline || totalSlides <= 1) return;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'PageDown') {
+        e.preventDefault();
+        goToSlide(currentSlide + 1);
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
+        goToSlide(currentSlide - 1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewerData, totalSlides, currentSlide, goToSlide]);
+
   useEffect(() => {
     if (!viewerData) return;
     let isCancelled = false;
@@ -371,10 +293,15 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
       setIsParsing(true);
       setOfficeHtml('');
       setErrorMessage('');
-      if (pdfContainerRef.current) pdfContainerRef.current.innerHTML = '';
+      setCurrentSlide(1);
+      setTotalSlides(0);
+      pdfDocRef.current = null;
+      pptxInstanceRef.current = null;
+
+      if (pdfScrollContainerRef.current) pdfScrollContainerRef.current.innerHTML = '';
+      if (pptxHostRef.current) pptxHostRef.current.innerHTML = '';
 
       try {
-        // فحص البصمة الحقيقية للـ Blob المخزن بغض النظر عن التسمية القديمة
         const inspection = await inspectBlobContent(viewerData.blob);
 
         if (!inspection.valid) {
@@ -389,11 +316,62 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
         }
 
         if (inspection.fileType === 'pdf') {
-          if (pdfContainerRef.current) {
-            await renderOfflinePdfFile(viewerData.blob, pdfContainerRef.current);
+          const arrayBuffer = await viewerData.blob.arrayBuffer();
+          const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          if (isCancelled) return;
+
+          pdfDocRef.current = pdfDoc;
+          const firstPage = await pdfDoc.getPage(1);
+          const vp = firstPage.getViewport({ scale: 1 });
+          const isLandscapeSlide = vp.width > vp.height * 1.05;
+          const treatAsSlideDeck = viewerData.isSlideDeck || isLandscapeSlide || isPresentationHint(viewerData.title, '');
+
+          if (treatAsSlideDeck) {
+            setViewerMode('slide-deck');
+            setTotalSlides(pdfDoc.numPages);
+            setCurrentSlide(1);
+            await renderSinglePdfSlide(pdfDoc, 1);
+          } else {
+            setViewerMode('pdf-scroll');
+            if (pdfScrollContainerRef.current) {
+              await renderOfflinePdfDocument(viewerData.blob, pdfScrollContainerRef.current);
+            }
           }
-        } else if (inspection.fileType === 'ppt' || inspection.fileType === 'word') {
-          const html = await renderOfflineOfficeFile(viewerData.blob, inspection.fileType);
+        } else if (inspection.fileType === 'ppt') {
+          setViewerMode('pptx-deck');
+          const arrayBuffer = await viewerData.blob.arrayBuffer();
+
+          const zip = await JSZip.loadAsync(arrayBuffer);
+          const slideCount = Object.keys(zip.files).filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name)).length;
+
+          if (slideCount === 0) {
+            throw new Error('NO_SLIDES_FOUND');
+          }
+
+          if (!isCancelled && pptxHostRef.current) {
+            pptxHostRef.current.innerHTML = '';
+            const availW = Math.min(window.innerWidth - 24, 1000);
+            const slideW = Math.max(availW, 320);
+            const slideH = Math.round((slideW * 9) / 16);
+
+            const previewer = initPptxPreview(pptxHostRef.current, {
+              width: slideW,
+              height: slideH,
+              mode: 'slide'
+            });
+
+            pptxInstanceRef.current = previewer;
+            await previewer.preview(arrayBuffer);
+
+            if (!isCancelled) {
+              setTotalSlides(slideCount);
+              setCurrentSlide(1);
+              setTimeout(() => syncPptxVisibleSlide(1), 30);
+            }
+          }
+        } else if (inspection.fileType === 'word') {
+          setViewerMode('word');
+          const html = await renderOfflineWordFile(viewerData.blob);
           if (!isCancelled) setOfficeHtml(html);
         }
       } catch (err) {
@@ -408,9 +386,16 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
 
     renderOffline();
     return () => { isCancelled = true; };
-  }, [viewerData]);
+  }, [viewerData, renderSinglePdfSlide, syncPptxVisibleSlide]);
 
   if (!viewerData) return null;
+
+  const isSlideNavigationActive =
+    viewerData.isOffline &&
+    !isParsing &&
+    !errorMessage &&
+    (viewerMode === 'slide-deck' || viewerMode === 'pptx-deck') &&
+    totalSlides > 0;
 
   return createPortal(
     <div style={{
@@ -423,6 +408,7 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
       direction: 'rtl',
       animation: 'viewerFadeIn 0.25s ease forwards'
     }}>
+      {/* الشريط العلوي */}
       <div style={{
         height: '52px',
         backgroundColor: 'var(--card-bg-normal)',
@@ -463,7 +449,35 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
         </button>
       </div>
 
-      <div style={{ flex: 1, width: '100%', height: 'calc(100vh - 52px)', position: 'relative', overflowY: 'auto', backgroundColor: '#121215', WebkitOverflowScrolling: 'touch' }}>
+      {/* منطقة العرض الرئيسية */}
+      <div
+        onTouchStart={(e) => {
+          if (!isSlideNavigationActive) return;
+          touchStartXRef.current = e.touches[0].clientX;
+        }}
+        onTouchEnd={(e) => {
+          if (!isSlideNavigationActive || touchStartXRef.current === null) return;
+          const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+          touchStartXRef.current = null;
+          if (Math.abs(deltaX) > 45) {
+            if (deltaX > 0) goToSlide(currentSlide + 1);
+            else goToSlide(currentSlide - 1);
+          }
+        }}
+        style={{
+          flex: 1,
+          width: '100%',
+          height: isSlideNavigationActive ? 'calc(100vh - 110px)' : 'calc(100vh - 52px)',
+          position: 'relative',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          backgroundColor: '#121215',
+          WebkitOverflowScrolling: 'touch',
+          display: isSlideNavigationActive ? 'flex' : 'block',
+          alignItems: isSlideNavigationActive ? 'center' : 'stretch',
+          justifyContent: isSlideNavigationActive ? 'center' : 'flex-start'
+        }}
+      >
         {viewerData.isOffline ? (
           <>
             {isParsing && (
@@ -473,25 +487,65 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
             )}
 
             {errorMessage && !isParsing && (
-              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center', color: '#ef4444', fontSize: '14px', fontWeight: 'bold', lineHeight: '1.7' }}>
+              <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center', color: '#ef4444', fontSize: '14px', fontWeight: 'bold', lineHeight: '1.7', boxSizing: 'border-box' }}>
                 {errorMessage}
               </div>
             )}
 
+            {/* 1. عارض الشرائح المرئية الكاملة (PDF المحول من PowerPoint/Slides) */}
             <div
-              ref={pdfContainerRef}
+              style={{
+                display: (!isParsing && !errorMessage && viewerMode === 'slide-deck') ? 'flex' : 'none',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                height: '100%',
+                padding: '12px',
+                boxSizing: 'border-box'
+              }}
+            >
+              <canvas
+                ref={pdfSlideCanvasRef}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  borderRadius: '10px',
+                  backgroundColor: '#ffffff',
+                  boxShadow: '0 12px 35px rgba(0, 0, 0, 0.5)'
+                }}
+              />
+            </div>
+
+            {/* 2. عارض شرائح PPTX المباشر (يحافظ على التصميم والأشكال والخلفيات) */}
+            <div
+              ref={pptxHostRef}
+              style={{
+                display: (!isParsing && !errorMessage && viewerMode === 'pptx-deck') ? 'flex' : 'none',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                padding: '12px',
+                boxSizing: 'border-box',
+                direction: 'ltr'
+              }}
+            />
+
+            {/* 3. عارض مستندات PDF الطولية العادية */}
+            <div
+              ref={pdfScrollContainerRef}
               style={{
                 padding: '15px',
                 maxWidth: '900px',
                 margin: '0 auto',
-                display: (!isParsing && !officeHtml && !errorMessage) ? 'block' : 'none'
+                display: (!isParsing && !errorMessage && viewerMode === 'pdf-scroll') ? 'block' : 'none'
               }}
             />
 
-            {officeHtml && !isParsing && !errorMessage && (
+            {/* 4. عارض مستندات Word */}
+            {officeHtml && !isParsing && !errorMessage && viewerMode === 'word' && (
               <div
                 dangerouslySetInnerHTML={{ __html: officeHtml }}
-                style={{ padding: '18px', boxSizing: 'border-box', color: '#f4f4f5' }}
+                style={{ padding: '18px', boxSizing: 'border-box', color: '#f4f4f5', width: '100%' }}
               />
             )}
           </>
@@ -513,14 +567,81 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
           />
         )}
       </div>
+
+      {/* شريط التنقل السفلي بين الشرائح (السابق / رقم الشريحة / التالي) */}
+      {isSlideNavigationActive && (
+        <div style={{
+          height: '58px',
+          backgroundColor: 'var(--card-bg-normal)',
+          borderTop: '1px solid var(--border-line)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '18px',
+          padding: '0 16px',
+          flexShrink: 0,
+          direction: 'rtl'
+        }}>
+          <button
+            className="mat-clean-btn"
+            onClick={() => goToSlide(currentSlide - 1)}
+            disabled={currentSlide <= 1}
+            style={{
+              backgroundColor: currentSlide <= 1 ? 'rgba(255,255,255,0.04)' : 'var(--primary-color)',
+              color: currentSlide <= 1 ? 'var(--text-muted)' : '#ffffff',
+              border: '1px solid var(--border-line)',
+              borderRadius: '10px',
+              padding: '7px 18px',
+              fontSize: '13px',
+              fontWeight: 'bold',
+              cursor: currentSlide <= 1 ? 'not-allowed' : 'pointer',
+              opacity: currentSlide <= 1 ? 0.5 : 1,
+              WebkitTapHighlightColor: 'transparent'
+            }}
+          >
+            السابق
+          </button>
+
+          <span style={{
+            color: 'var(--text-pure)',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            minWidth: '90px',
+            textAlign: 'center',
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            padding: '6px 14px',
+            borderRadius: '10px',
+            border: '1px solid var(--border-line)'
+          }}>
+            {currentSlide} / {totalSlides}
+          </span>
+
+          <button
+            className="mat-clean-btn"
+            onClick={() => goToSlide(currentSlide + 1)}
+            disabled={currentSlide >= totalSlides}
+            style={{
+              backgroundColor: currentSlide >= totalSlides ? 'rgba(255,255,255,0.04)' : 'var(--primary-color)',
+              color: currentSlide >= totalSlides ? 'var(--text-muted)' : '#ffffff',
+              border: '1px solid var(--border-line)',
+              borderRadius: '10px',
+              padding: '7px 18px',
+              fontSize: '13px',
+              fontWeight: 'bold',
+              cursor: currentSlide >= totalSlides ? 'not-allowed' : 'pointer',
+              opacity: currentSlide >= totalSlides ? 0.5 : 1,
+              WebkitTapHighlightColor: 'transparent'
+            }}
+          >
+            التالي
+          </button>
+        </div>
+      )}
     </div>,
     document.body
   );
 };
 
-// =========================================================================
-// 🗂️ المكون الرئيسي MaterialsTab
-// =========================================================================
 export default function MaterialsTab({ 
   user = null,
   availableSubjects = [], 
@@ -547,7 +668,6 @@ export default function MaterialsTab({
   const [matUrl, setMatUrl] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // فحص الملفات المحفوظة في حساب المستخدم والتأكد من صلاحيتها
   useEffect(() => {
     let isMounted = true;
     const checkUserSavedFiles = async () => {
@@ -585,7 +705,6 @@ export default function MaterialsTab({
     setSelectedSubject(selectedSubject === subjName ? null : subjName);
   };
 
-  // --- ⚡ دالة تنزيل الملف وتحويله/فحصه وحفظه للعمل دون إنترنت ⚡ ---
   const handleDownloadToAccount = async (mat, e) => {
     e.stopPropagation();
     if (!user) return;
@@ -600,12 +719,9 @@ export default function MaterialsTab({
     try {
       const fileId = extractDriveFileId(mat.url);
       const targetUrl = getDirectDownloadUrl(mat.url);
+      const isSlideDeck = isPresentationHint(mat.name, mat.url);
       const preferPdf = isPresentationOrDocHint(mat.name, mat.url) ? '1' : '0';
 
-      // مسارات الجلب بالترتيب:
-      // 1. خادم Vercel المحلي مع تفضيل التحويل إلى PDF لعروض البوربوينت لضمان تطابق الشرائح 100%
-      // 2. مسار التصدير إلى PDF عبر البروكسي (لبيئة التطوير Localhost)
-      // 3. مسار التحميل المباشر لملفات PDF و PPTX عبر البروكسي
       const fetchCandidates = [
         fileId ? `/api/drive?id=${fileId}&preferPdf=${preferPdf}` : null,
         (fileId && preferPdf === '1')
@@ -643,9 +759,7 @@ export default function MaterialsTab({
           } else if (inspection.reason === 'LEGACY_BINARY_OFFICE') {
             specificError = 'صيغة الملف قديمة (.ppt). يرجى رفعه بصيغة PPTX أو PDF';
           }
-        } catch (err) {
-          // الانتقال للمسار البديل
-        }
+        } catch (err) {}
       }
 
       if (!validBlob || !detectedType) {
@@ -658,6 +772,7 @@ export default function MaterialsTab({
         name: mat.name,
         blob: validBlob,
         fileType: detectedType,
+        isSlideDeck: isSlideDeck || detectedType === 'ppt',
         savedAt: Date.now()
       });
 
@@ -670,7 +785,6 @@ export default function MaterialsTab({
     }
   };
 
-  // --- 🖥️ دالة فتح وعرض الملف بملء الشاشة ---
   const handleOpenFullscreenViewer = async (mat, e) => {
     e.stopPropagation();
 
@@ -683,7 +797,8 @@ export default function MaterialsTab({
             title: mat.name,
             isOffline: true,
             blob: record.blob,
-            fileType: record.fileType || 'pdf'
+            fileType: record.fileType || 'pdf',
+            isSlideDeck: !!record.isSlideDeck || isPresentationHint(mat.name, mat.url)
           });
           return;
         }
@@ -692,7 +807,6 @@ export default function MaterialsTab({
       }
     }
 
-    // وضع الزائر (أونلاين)
     const embedUrl = getOnlineEmbedUrl(mat.url, mat.name);
     setViewerData({
       title: mat.name,
@@ -705,7 +819,6 @@ export default function MaterialsTab({
     setViewerData(null);
   };
 
-  // --- 🗑️ دوال الضغط المطول وحذف الملف من الحساب ---
   const handleCardPressStart = (matId) => {
     if (!user || !downloadedMap[matId] || downloadingMap[matId]) return;
 
@@ -742,7 +855,6 @@ export default function MaterialsTab({
     }
   };
 
-  // --- دوال الأدمن ---
   const openAddModal = (subjName, e) => {
     e.stopPropagation();
     setMatName('');
@@ -834,7 +946,6 @@ export default function MaterialsTab({
         `}
       </style>
 
-      {/* عارض الملفات بملء الشاشة */}
       <FullscreenDocumentViewer viewerData={viewerData} onClose={handleCloseViewer} />
 
       {availableSubjects.map((subj, idx) => {
@@ -865,7 +976,6 @@ export default function MaterialsTab({
               boxShadow: isExpanded ? '0 8px 25px rgba(0, 0, 0, 0.25)' : '0 4px 10px rgba(0, 0, 0, 0.1)'
             }}
           >
-            {/* رأس بطاقة المادة */}
             <div 
               onClick={() => toggleSubjectCard(subjName)}
               style={{
@@ -897,7 +1007,6 @@ export default function MaterialsTab({
               </span>
             </div>
 
-            {/* القائمة الفرعية للملازم */}
             <div style={{
               maxHeight: isExpanded ? '2000px' : '0px',
               opacity: isExpanded ? 1 : 0,
@@ -960,7 +1069,6 @@ export default function MaterialsTab({
                             WebkitUserSelect: 'none'
                           }}
                         >
-                          {/* طبقة الحذف من الحساب عند الضغط المطول */}
                           {showDeleteOverlay && (
                             <div 
                               onClick={(e) => e.stopPropagation()}
@@ -997,7 +1105,6 @@ export default function MaterialsTab({
                             </div>
                           )}
 
-                          {/* اسم الملزمة على اليمين */}
                           <span style={{
                             color: 'var(--text-pure)', fontWeight: 'bold', fontSize: '15px',
                             textAlign: 'right', flex: 1, lineHeight: '1.4', wordBreak: 'break-word'
@@ -1005,9 +1112,7 @@ export default function MaterialsTab({
                             {mat.name}
                           </span>
 
-                          {/* حاوية الأزرار على اليسار */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                            
                             {canEdit && (
                               <>
                                 <button
@@ -1033,7 +1138,6 @@ export default function MaterialsTab({
                               </>
                             )}
 
-                            {/* 🌟 منطق الزر الذكي (ضيف vs مستخدم مسجل) 🌟 */}
                             {!user ? (
                               <button
                                 className="mat-clean-btn"
@@ -1087,7 +1191,6 @@ export default function MaterialsTab({
                                 تحميل
                               </button>
                             )}
-
                           </div>
                         </div>
                       );
@@ -1105,7 +1208,6 @@ export default function MaterialsTab({
         );
       })}
 
-      {/* نافذة الأدمن المنبثقة */}
       {modalState.isOpen && typeof document !== 'undefined' ? createPortal(
         <div 
           onClick={closeModal}

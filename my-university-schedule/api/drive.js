@@ -1,21 +1,17 @@
 // المسار: api/drive.js
 
-// دالة فحص البصمة الثنائية للتأكد من أن البيانات ملف صالح وليست صفحة HTML أو خطأ
 function inspectFileSignature(buffer) {
   if (!buffer || buffer.byteLength < 8) return { valid: false, type: 'empty' };
   const bytes = new Uint8Array(buffer.slice(0, 8));
 
-  // 1. بصمة ملف PDF صريح: %PDF (25 50 44 46)
   if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
     return { valid: true, type: 'pdf', mime: 'application/pdf' };
   }
 
-  // 2. بصمة حاوية Office Open XML الحديثة (PPTX / DOCX): PK\x03\x04 (50 4B 03 04)
   if (bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04) {
     return { valid: true, type: 'openxml', mime: 'application/octet-stream' };
   }
 
-  // 3. بصمة ملفات الأوفيس القديمة Binary OLE2 (.ppt / .doc): D0 CF 11 E0
   if (bytes[0] === 0xD0 && bytes[1] === 0xCF && bytes[2] === 0x11 && bytes[3] === 0xE0) {
     return { valid: false, type: 'legacy_office' };
   }
@@ -29,7 +25,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'معرف الملف غير صالح' });
   }
 
-  // ترتيب المسارات: إذا كان الملف عرضاً تقديمياً أو مستنداً، نفضل سحبه كـ PDF كامل التنسيق أولاً
   const exportEndpoints = [
     `https://docs.google.com/presentation/d/${id}/export/pdf`,
     `https://docs.google.com/document/d/${id}/export?format=pdf`
@@ -63,7 +58,7 @@ export default async function handler(req, res) {
 
       if (check.type === 'legacy_office') {
         detectedLegacyOffice = true;
-        continue; // نستمر في المحاولة عبر مسار التصدير إلى PDF
+        continue;
       }
 
       if (check.valid) {
@@ -74,9 +69,7 @@ export default async function handler(req, res) {
         res.setHeader('Cache-Control', 'public, max-age=3600');
         return res.status(200).send(Buffer.from(arrayBuffer));
       }
-    } catch (err) {
-      // الانتقال للمسار البديل في حال فشل الاتصال
-    }
+    } catch (err) {}
   }
 
   if (detectedLegacyOffice) {

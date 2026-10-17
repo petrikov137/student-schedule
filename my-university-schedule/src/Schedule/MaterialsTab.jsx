@@ -335,14 +335,17 @@ export default function MaterialsTab({
     setDownloadingMap(prev => ({ ...prev, [mat.id]: true }));
 
     try {
+      const fileId = extractDriveFileId(mat.url);
       const targetUrl = getDirectDownloadUrl(mat.url);
       
-      // قائمة بوابات جلب البيانات لتخطي حظر CORS الخاص بـ Google Drive
       const fetchCandidates = [
-        targetUrl,
-        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
-      ];
+        // 1. خادم Vercel الخاص بك (مضمون 100% وسريع جداً)
+        fileId ? `/api/drive?id=${fileId}` : null,
+        // 2. بروكسي بديل يعمل على Localhost للروابط العادية
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+        // 3. في حال كان الملف Google Doc/Slide على Localhost
+        fileId ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://docs.google.com/document/d/${fileId}/export?format=pdf`)}` : null
+      ].filter(Boolean);
 
       let fetchedBlob = null;
 

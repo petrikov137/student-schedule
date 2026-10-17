@@ -11,10 +11,13 @@ const AssignmentIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" viewBox="
 const CheckIcon = () => ( <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> );
 const XIcon = () => ( <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> );
 
-const ToggleSwitch = ({ label, isChecked, onChange, activeColor }) => (
-<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: 'var(--card-bg-locked)', borderRadius: '8px', border: '1px solid var(--border-line)', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }} onClick={onChange}>
- <span style={{ color: 'var(--text-pure)', fontWeight: 'bold', fontSize: '15px' }}>{label}</span>
- <div style={{ width: '46px', height: '24px', backgroundColor: isChecked ? activeColor : 'var(--dot-bg)', borderRadius: '15px', position: 'relative', transition: 'background-color 0.3s' }}>
+const ToggleSwitch = ({ label, isChecked, onChange, activeColor, children }) => (
+<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: 'var(--card-bg-locked)', borderRadius: '12px', border: '1px solid var(--border-line)' }}>
+ <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+   <span style={{ color: 'var(--text-pure)', fontWeight: 'bold', fontSize: '15px', whiteSpace: 'nowrap' }}>{label}</span>
+   {children && <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>{children}</div>}
+ </div>
+ <div onClick={onChange} style={{ flexShrink: 0, marginLeft: '10px', width: '46px', height: '24px', backgroundColor: isChecked ? activeColor : 'var(--dot-bg)', borderRadius: '15px', position: 'relative', transition: 'background-color 0.3s', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
    <div style={{ width: '18px', height: '18px', backgroundColor: 'white', borderRadius: '50%', position: 'absolute', top: '3px', left: isChecked ? '25px' : '3px', transition: 'left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
  </div>
 </div>
@@ -31,10 +34,10 @@ const dynamicEventTypes = ["امتحان", "واجب", "تقرير", "أُخرى
 const groupOptions = ['A', 'B', 'C', 'D'];
 
 // 🌟 حالات الإدارة (ما يوجد في Firebase فقط) 🌟
-const [fixedOverrides, setFixedOverrides] = useState({}); // التعديلات على المواد الثابتة (إخفاء، تغيير النوع، إضافة ملاحظة)
-const [dynamicEvents, setDynamicEvents] = useState([]); // الواجبات والامتحانات الإضافية الجديدة
-const [editIsOpen, setEditIsOpen] = useState(false);
-const [editIsExam, setEditIsExam] = useState(false);
+const [fixedOverrides, setFixedOverrides] = useState({}); 
+const [dynamicEvents, setDynamicEvents] = useState([]); 
+const [editOpenGroups, setEditOpenGroups] = useState([]); // مصفوفة الكروبات المفتوحة دراسياً
+const [editExamGroups, setEditExamGroups] = useState([]); // مصفوفة الكروبات المحددة كامتحانات
 
 // 🌟 حالات النافذة العائمة للتعديل على محاضرة منفردة 🌟
 const [editingSubjectId, setEditingSubjectId] = useState(null);
@@ -44,17 +47,17 @@ useEffect(() => {
  if (dayInfo) {
    setFixedOverrides(dayInfo.fixedOverrides || {});
    setDynamicEvents(dayInfo.dynamicEvents || []);
-   setEditIsOpen(dayInfo.isOpen === true);
-   setEditIsExam(dayInfo.isExam === true);
+   // التوافق مع البيانات القديمة (إذا كان true يتم تفعيل جميع الكروبات)
+   setEditOpenGroups(dayInfo.openGroups || (dayInfo.isOpen === true ? ['A', 'B', 'C', 'D'] : []));
+   setEditExamGroups(dayInfo.examGroups || (dayInfo.isExam === true ? ['A', 'B', 'C', 'D'] : []));
  } else {
    setFixedOverrides({});
    setDynamicEvents([]);
-   setEditIsOpen(false); // افتراضياً اليوم غير مفعل (خافت) ما لم يفتحه الأدمن
-   setEditIsExam(false);
+   setEditOpenGroups([]); 
+   setEditExamGroups([]);
  }
 }, [dayInfo, isExpanded]);
 
-// إغلاق النافذة العائمة عند إغلاق وضع الأدمن أو تغيير اليوم
 useEffect(() => {
  if (!isAdminMode || !isExpanded) {
    setEditingSubjectId(null);
@@ -69,14 +72,12 @@ const canAdminEditSubject = (subjGroups) => {
  return subjGroups.includes(adminGroup);
 };
 
-// 🌟 دمج الجدول الثابت مع تعديلات الأدمن للعرض (مع دعم كروب X الموحد وفلترة الكروبات) 🌟
+// 🌟 دمج الجدول الثابت مع تعديلات الأدمن للعرض 🌟
 const mergedSubjects = useMemo(() => {
  const staticForDay = staticTimetable[day] || [];
  const list = [];
 
- // 1. معالجة المواد الثابتة
  if (activeGroup === 'X') {
-   // في كروب X: نجمع المواد المتشابهة في نفس اليوم لتظهر مرة واحدة وتطبق التعديلات على كل الكروبات المشمولة
    const groupedBySubject = new Map();
 
    staticForDay.forEach(staticSubj => {
@@ -114,14 +115,12 @@ const mergedSubjects = useMemo(() => {
      });
    });
  } else {
-   // في الكروبات العادية (A, B, C, D): نعرض فقط محاضرات الكروب المختار في الهيدر (سواء للطالب أو للأدمن)
    staticForDay.forEach(staticSubj => {
      const isVisibleForGroup = !staticSubj.groups || staticSubj.groups.length === 0 || staticSubj.groups.includes(activeGroup);
      if (!isVisibleForGroup) return;
 
      const override = fixedOverrides[staticSubj.id] || {};
      
-     // إذا كنا في وضع الأدمن، نظهر المادة حتى لو كانت مخفية لكي يستطيع إرجاعها
      if (override.isHidden && !isAdminMode) return;
 
      list.push({
@@ -136,7 +135,6 @@ const mergedSubjects = useMemo(() => {
    });
  }
 
- // 2. معالجة المواد الديناميكية الإضافية
  dynamicEvents.forEach(dynSubj => {
    const isVisibleForGroup = activeGroup === 'X' || !dynSubj.groups || dynSubj.groups.length === 0 || dynSubj.groups.includes(activeGroup);
    if (isVisibleForGroup) {
@@ -147,30 +145,17 @@ const mergedSubjects = useMemo(() => {
  return list;
 }, [day, activeGroup, fixedOverrides, dynamicEvents, isAdminMode]);
 
-// ---------- دوال تحكم الأدمن ----------
+// ---------- دوال تحكم الإدارة لليوم الدراسي والامتحانات ----------
 
-const toggleHideFixed = (targetIds) => {
- const ids = Array.isArray(targetIds) ? targetIds : [targetIds];
- setFixedOverrides(prev => {
-   const next = { ...prev };
-   const currentlyAllHidden = ids.every(id => prev[id]?.isHidden);
-   ids.forEach(id => {
-     next[id] = { ...prev[id], isHidden: !currentlyAllHidden };
-   });
-   return next;
- });
+const toggleOpenGroup = (grp) => {
+ setEditOpenGroups(prev => prev.includes(grp) ? prev.filter(g => g !== grp) : [...prev, grp]);
 };
 
-const updateFixedOverride = (targetIds, field, value) => {
- const ids = Array.isArray(targetIds) ? targetIds : [targetIds];
- setFixedOverrides(prev => {
-   const next = { ...prev };
-   ids.forEach(id => {
-     next[id] = { ...prev[id], [field]: value };
-   });
-   return next;
- });
+const toggleExamGroup = (grp) => {
+ setEditExamGroups(prev => prev.includes(grp) ? prev.filter(g => g !== grp) : [...prev, grp]);
 };
+
+// ---------- دوال تحكم الإدارة للمحاضرات ----------
 
 const handleAddDynamic = (e) => {
  e.stopPropagation();
@@ -183,38 +168,19 @@ const handleAddDynamic = (e) => {
  const newId = `dynamic_${Date.now()}`;
  const newEvent = { id: newId, type: "امتحان", name: courseSubjectsList[0], content: "", groups: defaultGroups };
  setDynamicEvents(prev => [...prev, newEvent]);
- // فتح النافذة العائمة فوراً للحدث الجديد
  setEditingSubjectId(newId);
  setModalDraft({ ...newEvent, isFixed: false });
-};
-
-const updateDynamic = (dynId, field, value) => {
- setDynamicEvents(prev => prev.map(ev => ev.id === dynId ? { ...ev, [field]: value } : ev));
-};
-
-const toggleDynamicGroup = (dynId, group) => {
- setDynamicEvents(prev => prev.map(ev => {
-   if (ev.id === dynId) {
-     let currentGroups = ev.groups || [];
-     if (currentGroups.includes(group)) currentGroups = currentGroups.filter(g => g !== group);
-     else currentGroups.push(group);
-     return { ...ev, groups: currentGroups };
-   }
-   return ev;
- }));
 };
 
 const removeDynamic = (dynId) => {
  setDynamicEvents(prev => prev.filter(ev => ev.id !== dynId));
 };
 
-// ---------- دوال النافذة العائمة للمحاضرة ----------
-
 const openSubjectModal = (subject, e) => {
  if (e) e.stopPropagation();
  const hasPermission = canAdminEditSubject(subject.groups);
  if (!hasPermission) {
-   showToast("🔒 هذه مادة مشتركة (للقراءة فقط)", "error");
+   showToast("هذه مادة مشتركة (للقراءة فقط)", "error");
    return;
  }
  setEditingSubjectId(subject.id);
@@ -288,29 +254,31 @@ const handleSaveDay = async (e) => {
  e.stopPropagation();
  try {
    await set(ref(database, `week_${currentWeek}/${day}`), {
-     isOpen: editIsOpen,
-     isExam: editIsExam,
+     isOpen: editOpenGroups.length > 0, // لضمان التوافق مع الكود القديم
+     isExam: editExamGroups.length > 0, // لضمان التوافق مع الكود القديم
+     openGroups: editOpenGroups,
+     examGroups: editExamGroups,
      fixedOverrides: fixedOverrides,
      dynamicEvents: dynamicEvents,
      lastUpdated: Date.now()
    });
-   showToast(`✅ تم حفظ تحديثات يوم ${day} بنجاح!`, "success");
+   showToast(`تم حفظ تحديثات يوم ${day} بنجاح`, "success");
  } catch (error) {
-   showToast("❌ حدث خطأ أثناء الحفظ", "error");
+   showToast("حدث خطأ أثناء الحفظ", "error");
  }
 };
 
-// ---------- حسابات الحضور ----------
+// ---------- حسابات الحضور والحالة التلقائية للبطاقة ----------
+const studentVisibleSubjects = mergedSubjects.filter(s => !s.isHidden && (activeGroup === 'X' || !s.groups || s.groups.length === 0 || s.groups.includes(activeGroup)));
+const isActuallyEmptyForGroup = studentVisibleSubjects.length === 0;
+
 let dayAttendance = {};
 let markedCount = 0; let presentCount = 0; let absentCount = 0; let totalSubjects = 0;
-// نحسب الحضور بناءً على العناصر المعروضة للطالب فقط (حتى لا تحسب المحذوفات)
-const studentVisibleSubjects = mergedSubjects.filter(s => !s.isHidden && (activeGroup === 'X' || !s.groups || s.groups.length === 0 || s.groups.includes(activeGroup)));
 
 if (isExpanded && user && selectedArchive === null) {
  dayAttendance = userAttendance[`week_${currentWeek}`]?.[day] || {};
  totalSubjects = studentVisibleSubjects.length;
  
- // نعتمد على id الخاص بكل مادة لضمان دقة التسجيل حتى مع الإضافة/الحذف
  studentVisibleSubjects.forEach(subj => {
    if (dayAttendance[subj.id]) {
      markedCount++;
@@ -320,10 +288,35 @@ if (isExpanded && user && selectedArchive === null) {
  });
 }
 
-// 🌟 حساب حالة البطاقة والألوان بشكل حي وفوري (خصوصاً في وضع الأدمن) 🌟
-const effectiveIsLocked = (isAdminMode && isExpanded) ? !editIsOpen : isLocked;
-const effectiveIsExam = (isAdminMode && isExpanded) ? editIsExam : isExam;
-const nonExamColor = (!isExam && statusColor !== '#ff0000d1') ? statusColor : 'var(--primary-color)';
+// حساب ما إذا كان اليوم مفتوحاً للكروب المحدد
+let groupIsOpen = false;
+let groupIsExam = false;
+if (activeGroup === 'X') {
+ groupIsOpen = dayInfo?.openGroups ? dayInfo.openGroups.length > 0 : (dayInfo?.isOpen === true);
+ groupIsExam = dayInfo?.examGroups ? dayInfo.examGroups.length > 0 : (dayInfo?.isExam === true);
+} else {
+ groupIsOpen = dayInfo?.openGroups ? dayInfo.openGroups.includes(activeGroup) : (dayInfo?.isOpen === true);
+ groupIsExam = dayInfo?.examGroups ? dayInfo.examGroups.includes(activeGroup) : (dayInfo?.isExam === true);
+}
+
+// الإغلاق التلقائي: يغلق اليوم إذا لم يتم تحديده للأدمن كدوام، أو إذا كان فارغاً تماماً من المحاضرات
+const finalIsLocked = !groupIsOpen || isActuallyEmptyForGroup;
+const finalIsExam = groupIsExam;
+
+// حالة التعديل الحية للأدمن أثناء فتح البطاقة
+let currentEditIsOpen = false;
+let currentEditIsExam = false;
+if (activeGroup === 'X') {
+ currentEditIsOpen = editOpenGroups.length > 0;
+ currentEditIsExam = editExamGroups.length > 0;
+} else {
+ currentEditIsOpen = editOpenGroups.includes(activeGroup);
+ currentEditIsExam = editExamGroups.includes(activeGroup);
+}
+
+const effectiveIsLocked = (isAdminMode && isExpanded) ? !currentEditIsOpen : finalIsLocked;
+const effectiveIsExam = (isAdminMode && isExpanded) ? currentEditIsExam : finalIsExam;
+const nonExamColor = (!finalIsExam && statusColor !== '#ff0000d1') ? statusColor : 'var(--primary-color)';
 const effectiveStatusColor = effectiveIsExam ? '#ff0000d1' : nonExamColor;
 
 return (
@@ -341,9 +334,10 @@ return (
 
  <div 
    className={`day-card ${isExpanded ? 'expanded' : ''} schedule-day-box`}
+   onClick={(e) => toggleDay(day, (effectiveIsLocked && !isAdminMode), e)}
    style={{
      opacity: effectiveIsLocked ? 0.6 : 1,
-     cursor: (isLocked && !isAdminMode) ? 'default' : 'pointer',
+     cursor: (effectiveIsLocked && !isAdminMode) ? 'default' : 'pointer',
      ...(showNotification && !isAdminMode ? {
        backgroundImage: 'linear-gradient(270deg, var(--notify-1), var(--notify-2), var(--notify-3), var(--notify-1))', backgroundSize: '400% 400%', animation: 'gradientFadeMove 3s ease infinite', borderTop: '1px solid var(--border-line)', borderBottom: '1px solid var(--border-line)', borderRight: '1px solid var(--border-line)'
      } : { backgroundColor: effectiveIsLocked ? 'var(--card-bg-locked)' : (isExpanded ? 'var(--card-bg-expanded)' : 'var(--card-bg-normal)') }),
@@ -352,10 +346,10 @@ return (
      transition: 'opacity 0.3s ease, border-color 0.3s ease, background-color 0.3s ease'
    }}
  >
-   <div onClick={(e) => toggleDay(day, (isLocked && !isAdminMode), e)} style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px' }}>
+   <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px' }}>
      <h3 style={{ margin: 0, fontSize: '18px', color: effectiveIsLocked ? 'var(--text-muted)' : 'var(--text-pure)' }}>
        {day} {effectiveIsExam && !effectiveIsLocked && !isExpanded ? '!!' : ''}
-       {isAdminMode && isExpanded && <span style={{fontSize:'12px', color:'var(--primary-color)', marginRight:'10px'}}>✏️ تعديل ({activeGroup === 'X' ? 'الكل X' : `كروب ${activeGroup}`})</span>}
+       {isAdminMode && isExpanded && <span style={{fontSize:'12px', color:'var(--primary-color)', marginRight:'10px'}}>تعديل ({activeGroup === 'X' ? 'الكل X' : `كروب ${activeGroup}`})</span>}
      </h3>
      <span style={{ fontSize: '14px', color: (effectiveIsLocked && !(isAdminMode && isExpanded && effectiveIsExam)) ? 'var(--text-muted)' : (isExpanded ? effectiveStatusColor : 'var(--text-main)'), backgroundColor: isExpanded ? `${effectiveStatusColor}1a` : 'transparent', padding: '4px 10px', borderRadius: '8px', fontWeight: 'bold', transition: 'all 0.3s ease' }}>{dateString}</span>
    </div>
@@ -367,16 +361,23 @@ return (
        {isAdminMode ? (
          <div style={{ padding: '0 15px', display: 'flex', flexDirection: 'column', gap: '15px' }} onClick={(e)=>e.stopPropagation()}>
            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '5px' }}>
-             <ToggleSwitch label="يوم دراسي (دوام مفتوح)" isChecked={editIsOpen} onChange={() => setEditIsOpen(!editIsOpen)} activeColor="var(--primary-color)" />
-             <ToggleSwitch label="يوم امتحانات" isChecked={editIsExam} onChange={() => setEditIsExam(!editIsExam)} activeColor="#ff0000" />
+             <ToggleSwitch label="يوم دراسي" isChecked={editOpenGroups.length > 0} onChange={() => setEditOpenGroups(editOpenGroups.length > 0 ? [] : ['A', 'B', 'C', 'D'])} activeColor="var(--primary-color)">
+                {groupOptions.map(grp => (
+                  <span key={grp} onClick={(e) => { e.stopPropagation(); toggleOpenGroup(grp); }} style={{ padding: '3px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', backgroundColor: editOpenGroups.includes(grp) ? 'var(--primary-color)' : 'transparent', color: editOpenGroups.includes(grp) ? '#fff' : 'var(--text-muted)', border: editOpenGroups.includes(grp) ? '1px solid var(--primary-color)' : '1px solid var(--border-line)', transition: 'all 0.2s ease' }}>{grp}</span>
+                ))}
+             </ToggleSwitch>
+
+             <ToggleSwitch label="يوم امتحانات" isChecked={editExamGroups.length > 0} onChange={() => setEditExamGroups(editExamGroups.length > 0 ? [] : ['A', 'B', 'C', 'D'])} activeColor="#ff0000">
+                {groupOptions.map(grp => (
+                  <span key={grp} onClick={(e) => { e.stopPropagation(); toggleExamGroup(grp); }} style={{ padding: '3px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', backgroundColor: editExamGroups.includes(grp) ? '#ef4444' : 'transparent', color: editExamGroups.includes(grp) ? '#fff' : 'var(--text-muted)', border: editExamGroups.includes(grp) ? '1px solid #ef4444' : '1px solid var(--border-line)', transition: 'all 0.2s ease' }}>{grp}</span>
+                ))}
+             </ToggleSwitch>
            </div>
            
-           {/* عرض المحاضرات بشكل مشابه لواجهة الطالب مع فتح نافذة التعديل عند الضغط */}
            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '5px' }}>
              {mergedSubjects.map((subject) => {
                const hasPermission = canAdminEditSubject(subject.groups);
                const isFixed = subject.isFixed;
-               const targetIds = subject.targetIds || [subject.id];
                const isSpecificExam = subject.type === 'امتحان';
                const eventType = subject.type || 'محاضرة';
                const subjectName = subject.name || 'مادة سابقة';
@@ -421,22 +422,17 @@ return (
                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                          {subject.isHidden && (
                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.12)', padding: '3px 8px', borderRadius: '6px' }}>
-                             🚫 مخفية عن الطلاب
+                             مخفية عن الطلاب
                            </span>
                          )}
                          {!hasPermission ? (
                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.12)', padding: '3px 8px', borderRadius: '6px' }}>
-                             🔒 قراءة فقط
+                             قراءة فقط
                            </span>
                          ) : (
                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-muted)', backgroundColor: 'var(--card-bg-normal)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border-line)' }}>
-                             {isFixed ? (activeGroup === 'X' && targetIds.length > 1 ? `📌 موحدة (${subject.groups.join(', ')})` : '📌 أساسية') : `✨ إضافية (${subject.groups && subject.groups.length > 0 ? subject.groups.join(', ') : 'الكل'})`}
+                             {subject.groups && subject.groups.length > 0 ? subject.groups.join(' ') : 'الكل'}
                            </span>
-                         )}
-                         {hasPermission && (
-                           <div style={{ width: '26px', height: '26px', borderRadius: '50%', backgroundColor: 'var(--card-bg-normal)', border: '1px solid var(--border-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)', fontSize: '12px' }}>
-                             ✏️
-                           </div>
                          )}
                        </div>
                      </div>
@@ -445,13 +441,9 @@ return (
                        {subjectName}
                      </span>
                      
-                     {subject.content ? (
+                     {subject.content && (
                        <span style={{ color: typeAndContentColor, fontSize: '14px', whiteSpace: 'pre-wrap', marginTop: '4px', lineHeight: '1.6' }}>
                          {subject.content}
-                       </span>
-                     ) : (
-                       <span style={{ color: 'var(--text-muted)', fontSize: '12px', opacity: 0.6, marginTop: '2px' }}>
-                         اضغط لإضافة ملاحظات أو تعديل المحاضرة...
                        </span>
                      )}
                    </div>
@@ -459,7 +451,6 @@ return (
                )
              })}
 
-             {/* 🌟 بطاقة إضافة حدث إضافي (شفافة ببوردر منقط وعلامة + فقط) 🌟 */}
              <div 
                onClick={handleAddDynamic}
                className="subject-inner-card"
@@ -509,7 +500,6 @@ return (
                  const eventType = subj.type || 'محاضرة';
                  const subjectName = subj.name || 'مادة سابقة';
 
-                 // 🌟 استخدام id الخاص بالحدث لضمان دقة التسجيل 🌟
                  const currentEventId = `event-${currentWeek}-${day}-${subj.id}`;
                  const isMenuOpen = activeAttendanceMenu === currentEventId;
                  const eventStatus = selectedArchive === null ? userAttendance[`week_${currentWeek}`]?.[day]?.[subj.id] : null; 
@@ -640,7 +630,7 @@ return (
        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-line)', paddingBottom: '14px' }}>
          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
            <span style={{ fontSize: '12px', color: 'var(--primary-color)', fontWeight: 'bold' }}>
-             {modalDraft.isFixed ? (activeGroup === 'X' && modalDraft.targetIds?.length > 1 ? `📌 محاضرة أساسية موحدة (${modalDraft.groups.join(', ')})` : '📌 محاضرة أساسية في الجدول') : '✨ حدث إضافي مخصص'}
+             {modalDraft.isFixed ? 'محاضرة في الجدول' : 'حدث إضافي مخصص'}
            </span>
            <h3 style={{ margin: 0, fontSize: '20px', color: 'var(--text-pure)', fontWeight: 'bold' }}>
              {modalDraft.name}
@@ -675,7 +665,7 @@ return (
          >
            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
              <span style={{ fontSize: '14px', fontWeight: 'bold', color: modalDraft.isHidden ? '#ef4444' : 'var(--text-pure)' }}>
-               {modalDraft.isHidden ? '🚫 المحاضرة مخفية عن الطلاب' : '👁️ المحاضرة مرئية للطلاب'}
+               {modalDraft.isHidden ? 'المحاضرة مخفية عن الطلاب' : 'المحاضرة مرئية للطلاب'}
              </span>
              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                اضغط لتبديل حالة ظهور هذه المحاضرة
@@ -685,7 +675,7 @@ return (
              padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold',
              backgroundColor: modalDraft.isHidden ? '#10b981' : '#ef4444', color: '#fff'
            }}>
-             {modalDraft.isHidden ? 'إظهار 👁️' : 'إخفاء 🚫'}
+             {modalDraft.isHidden ? 'إظهار' : 'إخفاء'}
            </div>
          </div>
        ) : (
@@ -699,7 +689,7 @@ return (
                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
              }}
            >
-             🗑️ حذف هذا الحدث نهائياً
+             حذف هذا الحدث نهائياً
            </button>
          </div>
        )}
@@ -707,7 +697,7 @@ return (
        {/* الكروبات المشمولة */}
        <div>
          <div style={{ fontSize: '12px', color: 'var(--text-details)', marginBottom: '8px', fontWeight: 'bold' }}>
-           الكروبات المشمولة {modalDraft.isFixed && '(ثابتة من النظام)'}
+           الكروبات المشمولة
          </div>
          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', opacity: modalDraft.isFixed ? 0.65 : 1, pointerEvents: modalDraft.isFixed ? 'none' : 'auto' }}>
            {groupOptions.map(grp => {
@@ -808,7 +798,7 @@ return (
              boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)', WebkitTapHighlightColor: 'transparent'
            }}
          >
-           حفظ التغييرات للمحاضرة ✓
+           حفظ التغييرات للمحاضرة
          </button>
          <button 
            onClick={closeSubjectModal}

@@ -1,14 +1,51 @@
 import React, { useState, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { getToken, onMessage } from 'firebase/messaging';
 import { messaging, database } from './firebase';
 import { ref, set } from 'firebase/database';
 
+// 🌟 أيقونة الثيمات (لوحة ألوان - Palette) 🌟
+
+// const ThemeIcon = () => (
+//   <svg
+//     width="18"
+//     height="18"
+//     viewBox="0 0 24 24"
+//     fill="none"
+//     stroke="currentColor"
+//     strokeWidth="1.8"
+//     strokeLinecap="round"
+//     strokeLinejoin="round"
+//   >
+//     <path d="M12 3a9 9 0 0 0 0 18h1.5a2.5 2.5 0 0 0 1.7-4.3 1.5 1.5 0 0 1 1-2.7H19a2 2 0 0 0 2-2A9 9 0 0 0 12 3Z" />
+//     <circle cx="7.5" cy="10" r="1" fill="currentColor" stroke="none" />
+//     <circle cx="10" cy="6.5" r="1" fill="currentColor" stroke="none" />
+//     <circle cx="15" cy="7" r="1" fill="currentColor" stroke="none" />
+//     <circle cx="17" cy="11" r="1" fill="currentColor" stroke="none" />
+//   </svg>
+// );
+
+
 const ThemeIcon = () => (
-  <svg width="18" height="18" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.495-6.496a3.75 3.75 0 000-5.303l-1.06-1.06a3.75 3.75 0 00-5.304 0l-6.495 6.495a3.75 3.75 0 000 5.304l1.06 1.06z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M14.5 6.5l3 3" />
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M12 3L14.4 9.6L21 12L14.4 14.4L12 21L9.6 14.4L3 12L9.6 9.6L12 3Z" />
+    <path d="M19 2V6" />
+    <path d="M17 4H21" />
+    <path d="M5 17V21" />
+    <path d="M3 19H7" />
   </svg>
 );
+
 
 const ProfileIcon = () => (
   <svg width="18" height="18" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
@@ -24,31 +61,28 @@ const ScheduleIcon = () => (
 
 const BellIcon = ({ isSubscribed }) => {
   return (
-    <div style={{ position: 'relative', width: '18px', height: '18px' }}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill={isSubscribed ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', top: 0, left: 0, transition: 'fill 0.3s ease' }}>
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-      </svg>
-      <svg width="18" height="18" viewBox="0 0 24 24" style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
-        <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ strokeDasharray: 26, strokeDashoffset: isSubscribed ? 26 : 0, transition: 'stroke-dashoffset 0.4s cubic-bezier(0.4, 0, 0.2, 1)', opacity: isSubscribed ? 0 : 1 }} />
-      </svg>
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'relative', width: '18px', height: '18px' }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill={isSubscribed ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', top: 0, left: 0, transition: 'fill 0.3s ease' }}>
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+          <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ strokeDasharray: 26, strokeDashoffset: isSubscribed ? 26 : 0, transition: 'stroke-dashoffset 0.4s cubic-bezier(0.4, 0, 0.2, 1)', opacity: isSubscribed ? 0 : 1 }} />
+        </svg>
+      </div>
     </div>
   );
 };
 
-// 🌟 المكون المحدث: أزرار اختيار الكروب (الشفافة + سلايدر) 🌟
 const GroupSelector = ({ activeGroup, setActiveGroup, userRole }) => {
-  // إضافة كروب X للمشرف العام فقط
-  // الترتيب هنا مع اتجاه RTL يجعل A في أقصى اليسار بجانب زر الإشعارات، وتتسلسل باقي الأزرار لليمين (D, C, B, A)
   const groups = userRole === 'super_admin' ? ['X', 'D', 'C', 'B', 'A'] : ['D', 'C', 'B', 'A'];
   
-  // دالة لمعرفة ما إذا كان الزر مقفلاً 
   const isGroupDisabled = (group) => {
     if (!userRole || userRole === 'student' || userRole === 'super_admin') return false;
     return userRole !== `admin_${group.toLowerCase()}`;
   };
 
-  // تحديد الموقع الحالي للسلايدر
   let activeIndex = groups.indexOf(activeGroup);
   if (activeIndex === -1) activeIndex = groups.indexOf('A') !== -1 ? groups.indexOf('A') : 0;
 
@@ -56,28 +90,27 @@ const GroupSelector = ({ activeGroup, setActiveGroup, userRole }) => {
     <div style={{
       position: 'relative',
       display: 'flex',
-      direction: 'rtl', // ضمان تطابق الترتيب وحساب السلايدر من اليمين لليسار بدون معاكسة
+      direction: 'rtl', 
       alignItems: 'center',
-      backgroundColor: 'var(--card-bg-locked)', // خلفية بسيطة وهادئة تناسب الهيدر
-      borderRadius: '20px', // حواف دائرية متناسقة مع شكل التحديد الدائري
+      backgroundColor: 'var(--card-bg-locked)', 
+      borderRadius: '20px', 
       padding: '3px',
-      height: '32px', // نفس ارتفاع أزرار الأيقونات في الهيدر للمحاذاة التامة
+      height: '32px', 
       boxSizing: 'border-box',
-      border: '1px solid var(--border-line)', // الإبقاء على البوردر فقط
+      border: '1px solid var(--border-line)', 
       gap: '2px'
     }}>
       
-      {/* 🌟 السلايدر المتحرك في الخلفية 🌟 */}
       <div style={{
         position: 'absolute',
         top: '2px',
         width: '26px',
         height: '26px',
-        right: `calc(3px + ${activeIndex} * 28px)`, // معادلة دقيقة تمنع الانعكاس وتضمن التمركز الصحيح
+        right: `calc(3px + ${activeIndex} * 28px)`, 
         backgroundColor: 'var(--primary-color)',
-        borderRadius: '50%', // تحديد على شكل دائرة
+        borderRadius: '50%', 
         boxShadow: '0 2px 6px rgba(0, 0, 0, 0.18)',
-        transition: 'right 0.35s cubic-bezier(0.25, 1, 0.5, 1)', // أنميشن سلايد خفيف وناعم جداً
+        transition: 'right 0.35s cubic-bezier(0.25, 1, 0.5, 1)', 
         zIndex: 0
       }} />
 
@@ -90,18 +123,18 @@ const GroupSelector = ({ activeGroup, setActiveGroup, userRole }) => {
             onClick={() => !disabled && setActiveGroup(group)}
             style={{
               position: 'relative',
-              zIndex: 1, // ليكون الحرف فوق السلايدر
+              zIndex: 1, 
               background: 'transparent',
               color: isActive ? '#fff' : (disabled ? 'var(--text-muted)' : 'var(--text-pure)'),
               border: 'none',
-              borderRadius: '50%', // دائري بالكامل
-              width: '26px', // حجم متناسق وأنيق داخل هيدر الـ 32px
+              borderRadius: '50%', 
+              width: '26px', 
               height: '26px', 
               padding: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '13px', // حجم خط متوازن مع الدائرة
+              fontSize: '13px', 
               fontWeight: 'bold',
               fontFamily: 'sans-serif',
               lineHeight: 1,
@@ -159,7 +192,7 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
           try {
             const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
             const token = await getToken(messaging, { 
-              vapidKey: 'BE-ZU08UafjtNFOXQYvEW_OOjmTdo-D7SNCS4UVXEsmueTo-Nt84D6j5yM5srwrxVEu7xnC24LYjR1FdrjW5fuI',
+              vapidKey: import.meta.env.VITE_FCM_VAPID_KEY,
               serviceWorkerRegistration: swRegistration 
             });
             if (token) {
@@ -174,9 +207,9 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
     }
   };
 
+  // 🌟 نظام تبديل الثيم بتأثير عكسي خالي من الاهتزاز والوميض 🌟
   const toggleMode = (e) => {
     const newIsNight = !isNightMode;
-    setIsNightMode(newIsNight); 
     const themeMap = {
       'coffee': 'coffee-light', 'coffee-light': 'coffee',
       'ocean': 'ocean-light', 'ocean-light': 'ocean',
@@ -184,11 +217,56 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
       'hearts-dark': 'hearts', 'hearts': 'hearts-dark',
       'dark': 'light', 'light': 'dark'
     };
-    if (themeMap[currentTheme]) {
-      onThemeSelect(themeMap[currentTheme], e);
-    } else {
-      onThemeSelect(newIsNight ? 'dark' : 'light', e);
+    const nextTheme = themeMap[currentTheme] || (newIsNight ? 'dark' : 'light');
+
+    if (!document.startViewTransition) {
+      document.documentElement.setAttribute('data-theme', nextTheme);
+      setIsNightMode(newIsNight);
+      onThemeSelect(nextTheme, e);
+      return;
     }
+
+    const x = e?.clientX ?? window.innerWidth / 2;
+    const y = e?.clientY ?? 20;
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    );
+
+    const isGoingToDark = newIsNight;
+    document.documentElement.classList.add(isGoingToDark ? 'dark-transition' : 'light-transition');
+
+    const transition = document.startViewTransition(() => {
+      // 🌟 الحل الجذري: إجبار الـ DOM على تغيير ألوانه فوراً قبل أخذ المتصفح للقطة الشاشة
+      document.documentElement.setAttribute('data-theme', nextTheme);
+      
+      flushSync(() => {
+        setIsNightMode(newIsNight);
+        onThemeSelect(nextTheme, e);
+      });
+    });
+
+    transition.ready.then(() => {
+      const clipPath = [
+        `circle(0px at ${x}px ${y}px)`,
+        `circle(${endRadius}px at ${x}px ${y}px)`
+      ];
+      
+      document.documentElement.animate(
+        {
+          clipPath: isGoingToDark ? [...clipPath].reverse() : clipPath,
+        },
+        {
+          duration: 550,
+          easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+          pseudoElement: isGoingToDark ? '::view-transition-old(root)' : '::view-transition-new(root)',
+        }
+      );
+    });
+
+    transition.finished.then(() => {
+      document.documentElement.classList.remove('dark-transition', 'light-transition');
+    });
   };
 
   return (
@@ -205,6 +283,33 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
             100% { transform: rotate(0deg); }
           }
           .swinging { animation: swing-bell 0.8s ease-in-out; transform-origin: top center; }
+          
+          /* 🌟 إلغاء تأثيرات المتصفح العشوائية لمنع الاهتزاز والوميض 🌟 */
+          ::view-transition-group(root) {
+            animation: none !important;
+          }
+          ::view-transition-image-pair(root) {
+            isolation: auto !important;
+          }
+          ::view-transition-old(root),
+          ::view-transition-new(root) {
+            animation: none !important;
+            mix-blend-mode: normal !important;
+            display: block !important;
+            opacity: 1 !important; /* منع التلاشي الافتراضي */
+          }
+          
+          /* الافتراضي للتبديل */
+          ::view-transition-old(root) { z-index: 1; }
+          ::view-transition-new(root) { z-index: 2; }
+          
+          /* عند التحويل للداكن: الفاتح (القديم) يكون في الأعلى وينكمش ليكشف الداكن تحته */
+          .dark-transition::view-transition-old(root) { z-index: 2; }
+          .dark-transition::view-transition-new(root) { z-index: 1; }
+          
+          /* عند التحويل للفاتح: الفاتح (الجديد) يكون في الأعلى ويتوسع ليغطي الداكن تحته */
+          .light-transition::view-transition-old(root) { z-index: 1; }
+          .light-transition::view-transition-new(root) { z-index: 2; }
         `}
       </style>
 
@@ -226,14 +331,14 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
           <button 
             onClick={toggleMode}
             style={{
-              background: 'transparent', border: 'none', color: 'var(--text-pure)', cursor: 'pointer', padding: '6px', borderRadius: '6px', 
-              transition: 'background-color 0.3s ease', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', width: '32px', height: '32px', overflow: 'hidden', WebkitTapHighlightColor: 'transparent'
+              background: 'transparent', border: 'none', color: 'var(--text-pure)', cursor: 'pointer', padding: 0, borderRadius: '6px', 
+              transition: 'background-color 0.3s ease', zIndex: 20, position: 'relative', width: '32px', height: '32px', overflow: 'hidden', WebkitTapHighlightColor: 'transparent'
             }}
           >
-            <div style={{ position: 'absolute', transition: 'all 0.5s ease-in-out', transform: isNightMode ? 'rotate(0deg) scale(1)' : 'rotate(-180deg) scale(0)', opacity: isNightMode ? 1 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'absolute', inset: 0, transition: 'all 0.5s ease-in-out', transform: isNightMode ? 'rotate(0deg) scale(1)' : 'rotate(-180deg) scale(0)', opacity: isNightMode ? 1 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="18" height="18" viewBox="-2.4 -2.4 28.80 28.80" fill="none"><path d="M19.9001 2.30719C19.7392 1.8976 19.1616 1.8976 19.0007 2.30719L18.5703 3.40247C18.5212 3.52752 18.4226 3.62651 18.298 3.67583L17.2067 4.1078C16.7986 4.26934 16.7986 4.849 17.2067 5.01054L18.298 5.44252C18.4226 5.49184 18.5212 5.59082 18.5703 5.71587L19.0007 6.81115C19.1616 7.22074 19.7392 7.22074 19.9001 6.81116L20.3305 5.71587C20.3796 5.59082 20.4782 5.49184 20.6028 5.44252L21.6941 5.01054C22.1022 4.849 22.1022 4.26934 21.6941 4.1078L20.6028 3.67583C20.4782 3.62651 20.3796 3.52752 20.3305 3.40247L19.9001 2.30719Z" fill="currentColor"></path><path d="M16.0328 8.12967C15.8718 7.72009 15.2943 7.72009 15.1333 8.12967L14.9764 8.52902C14.9273 8.65407 14.8287 8.75305 14.7041 8.80237L14.3062 8.95987C13.8981 9.12141 13.8981 9.70107 14.3062 9.86261L14.7041 10.0201C14.8287 10.0694 14.9273 10.1684 14.9764 10.2935L15.1333 10.6928C15.2943 11.1024 15.8718 11.1024 16.0328 10.6928L16.1897 10.2935C16.2388 10.1684 16.3374 10.0694 16.462 10.0201L16.8599 9.86261C17.268 9.70107 17.268 9.12141 16.8599 8.95987L16.462 8.80237C16.3374 8.75305 16.2388 8.65407 16.1897 8.52902L16.0328 8.12967Z" fill="currentColor"></path><path d="M12 22C17.5228 22 22 17.5228 22 12C22 11.5373 21.3065 11.4608 21.0672 11.8568C19.9289 13.7406 17.8615 15 15.5 15C11.9101 15 9 12.0899 9 8.5C9 6.13845 10.2594 4.07105 12.1432 2.93276C12.5392 2.69347 12.4627 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"></path></svg>
             </div>
-            <div style={{ position: 'absolute', transition: 'all 0.5s ease-in-out', transform: !isNightMode ? 'rotate(0deg) scale(1)' : 'rotate(180deg) scale(0)', opacity: !isNightMode ? 1 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'absolute', inset: 0, transition: 'all 0.5s ease-in-out', transform: !isNightMode ? 'rotate(0deg) scale(1)' : 'rotate(180deg) scale(0)', opacity: !isNightMode ? 1 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M17 12C17 14.7614 14.7614 17 12 17C9.23858 17 7 14.7614 7 12C7 9.23858 9.23858 7 12 7C14.7614 7 17 9.23858 17 12Z" fill="currentColor"></path><path fillRule="evenodd" clipRule="evenodd" d="M12 1.25C12.4142 1.25 12.75 1.58579 12.75 2V4C12.75 4.41421 12.4142 4.75 12 4.75C11.5858 4.75 11.25 4.41421 11.25 4V2C11.25 1.58579 11.5858 1.25 12 1.25ZM3.66865 3.71609C3.94815 3.41039 4.42255 3.38915 4.72825 3.66865L6.95026 5.70024C7.25596 5.97974 7.2772 6.45413 6.9977 6.75983C6.7182 7.06553 6.2438 7.08677 5.9381 6.80727L3.71609 4.77569C3.41039 4.49619 3.38915 4.02179 3.66865 3.71609ZM20.3314 3.71609C20.6109 4.02179 20.5896 4.49619 20.2839 4.77569L18.0619 6.80727C17.7562 7.08677 17.2818 7.06553 17.0023 6.75983C16.7228 6.45413 16.744 5.97974 17.0497 5.70024L19.2718 3.66865C19.5775 3.38915 20.0518 3.41039 20.3314 3.71609ZM1.25 12C1.25 11.5858 1.58579 11.25 2 11.25H4C4.41421 11.25 4.75 11.5858 4.75 12C4.75 12.4142 4.41421 12.75 4 12.75H2C1.58579 12.75 1.25 12.4142 1.25 12ZM19.25 12C19.25 11.5858 19.5858 11.25 20 11.25H22C22.4142 11.25 22.75 11.5858 22.75 12C22.75 12.4142 22.4142 12.75 22 12.75H20C19.5858 12.75 19.25 12.4142 19.25 12ZM17.0255 17.0252C17.3184 16.7323 17.7933 16.7323 18.0862 17.0252L20.3082 19.2475C20.6011 19.5404 20.601 20.0153 20.3081 20.3082C20.0152 20.6011 19.5403 20.601 19.2475 20.3081L17.0255 18.0858C16.7326 17.7929 16.7326 17.3181 17.0255 17.0252ZM6.97467 17.0253C7.26756 17.3182 7.26756 17.7931 6.97467 18.086L4.75244 20.3082C4.45955 20.6011 3.98468 20.6011 3.69178 20.3082C3.39889 20.0153 3.39889 19.5404 3.69178 19.2476L5.91401 17.0253C6.2069 16.7324 6.68177 16.7324 6.97467 17.0253ZM12 19.25C12.4142 19.25 12.75 19.5858 12.75 20V22C12.75 22.4142 12.4142 22.75 12 22.75C11.5858 22.75 11.25 22.4142 11.25 22V20C11.25 19.5858 11.5858 19.25 12 19.25Z" fill="currentColor"></path></svg>
             </div>
           </button>
@@ -241,14 +346,13 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           
-          {/* 🌟 أزرار الكروبات المدمجة في الهيدر 🌟 */}
           <GroupSelector activeGroup={activeGroup} setActiveGroup={setActiveGroup} userRole={userRole} />
 
           <button 
             onClick={handleSubscribe} className={isSwinging ? 'swinging' : ''} 
             style={{
-              background: 'transparent', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', padding: '6px', borderRadius: '6px', 
-              transition: 'all 0.3s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', width: '32px', height: '32px', WebkitTapHighlightColor: 'transparent'
+              background: 'transparent', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', padding: 0, borderRadius: '6px', 
+              transition: 'all 0.3s ease', position: 'relative', width: '32px', height: '32px', WebkitTapHighlightColor: 'transparent'
             }}
           >
             <BellIcon isSubscribed={isSubscribed} />
@@ -258,22 +362,22 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
             onClick={() => onTabChange(activeTab === 'themes' ? 'schedule' : 'themes')}
             style={{
               background: activeTab === 'themes' ? 'var(--primary-color)' : 'transparent', color: activeTab === 'themes' ? 'var(--text-pure)' : 'var(--primary-color)',
-              border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'all 0.3s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', width: '32px', height: '32px', overflow: 'hidden', WebkitTapHighlightColor: 'transparent'
+              border: 'none', cursor: 'pointer', padding: 0, borderRadius: '6px', transition: 'all 0.3s ease', position: 'relative', width: '32px', height: '32px', overflow: 'hidden', WebkitTapHighlightColor: 'transparent'
             }}
           >
-            <div style={{ position: 'absolute', transition: 'all 0.4s', opacity: activeTab !== 'themes' ? 1 : 0, transform: activeTab !== 'themes' ? 'scale(1)' : 'scale(0.3)' }}><ThemeIcon /></div>
-            <div style={{ position: 'absolute', transition: 'all 0.4s', opacity: activeTab === 'themes' ? 1 : 0, transform: activeTab === 'themes' ? 'scale(1)' : 'scale(0.3)' }}><ScheduleIcon /></div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.4s', opacity: activeTab !== 'themes' ? 1 : 0, transform: activeTab !== 'themes' ? 'scale(1)' : 'scale(0.3)' }}><ThemeIcon /></div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.4s', opacity: activeTab === 'themes' ? 1 : 0, transform: activeTab === 'themes' ? 'scale(1)' : 'scale(0.3)' }}><ScheduleIcon /></div>
           </button>
 
           <button 
             onClick={() => onTabChange(activeTab === 'profile' ? 'schedule' : 'profile')}
             style={{
               background: activeTab === 'profile' ? 'var(--primary-color)' : 'transparent', color: activeTab === 'profile' ? 'var(--text-pure)' : 'var(--primary-color)',
-              border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'all 0.3s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', width: '32px', height: '32px', overflow: 'hidden', WebkitTapHighlightColor: 'transparent'
+              border: 'none', cursor: 'pointer', padding: 0, borderRadius: '6px', transition: 'all 0.3s ease', position: 'relative', width: '32px', height: '32px', overflow: 'hidden', WebkitTapHighlightColor: 'transparent'
             }}
           >
-            <div style={{ position: 'absolute', transition: 'all 0.4s', opacity: activeTab !== 'profile' ? 1 : 0, transform: activeTab !== 'profile' ? 'scale(1)' : 'scale(0.3)' }}><ProfileIcon /></div>
-            <div style={{ position: 'absolute', transition: 'all 0.4s', opacity: activeTab === 'profile' ? 1 : 0, transform: activeTab === 'profile' ? 'scale(1)' : 'scale(0.3)' }}><ScheduleIcon /></div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.4s', opacity: activeTab !== 'profile' ? 1 : 0, transform: activeTab !== 'profile' ? 'scale(1)' : 'scale(0.3)' }}><ProfileIcon /></div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.4s', opacity: activeTab === 'profile' ? 1 : 0, transform: activeTab === 'profile' ? 'scale(1)' : 'scale(0.3)' }}><ScheduleIcon /></div>
           </button>
         </div>
       </header>

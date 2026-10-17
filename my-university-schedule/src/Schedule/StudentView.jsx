@@ -33,10 +33,10 @@ function StudentView() {
   }, [activeGroup]);
 
   // توليد الأسابيع تلقائياً بناءً على إعدادات الكورس
-const weeks = Array.from({ length: COURSE_SETTINGS.totalWeeks }, (_, i) => {
-  const weekNames = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع", "العاشر", "الحادي عشر", "الثاني عشر", "الثالث عشر", "الرابع عشر", "الخامس عشر"];
-  return `الأسبوع ${weekNames[i] || (i + 1)}`;
-});
+  const weeks = Array.from({ length: COURSE_SETTINGS.totalWeeks }, (_, i) => {
+    const weekNames = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع", "العاشر", "الحادي عشر", "الثاني عشر", "الثالث عشر", "الرابع عشر", "الخامس عشر"];
+    return `الأسبوع ${weekNames[i] || (i + 1)}`;
+  });
 
   const days = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس"];
   
@@ -74,13 +74,13 @@ const weeks = Array.from({ length: COURSE_SETTINGS.totalWeeks }, (_, i) => {
   const [studentToast, setStudentToast] = useState({ show: false, message: '', type: '' });
 
   const themeCards = [
-    { id: 'ocean', name: 'المحيط (Ocean)', color: '#0094f7' },
-    { id: 'twilight', name: 'الشفق (Twilight)', color: '#9333ea' },
-    { id: 'hearts', name: 'القلوب (Hearts)', color: '#f43f5e' },
-    { id: 'coffee', name: 'القهوة (Coffee)', color: '#d28c47' },
-    { id: 'glass', name: 'الزجاج (Glass)', color: '#a8b2c1',  },
-    { id: 'matrix', name: 'المصفوفة (Matrix)', color: '#00ff41' },
-    { id: 'fox', name: 'الثعلب (Fox)', color: '#ff8c00' },
+    { id: 'ocean', name: 'محيـط', color: '#0094f7' },
+    { id: 'twilight', name: 'غسق', color: '#9333ea' },
+    { id: 'hearts', name: 'زهـري', color: '#f43f5e' },
+    { id: 'coffee', name: 'قهـوة', color: '#d28c47' },
+    { id: 'glass', name: 'زجـاج', color: '#a8b2c1',  },
+    { id: 'matrix', name: 'ماتريكس', color: '#00ff41' },
+    { id: 'fox', name: 'ثعلب', color: '#ff8c00' },
   ];
 
   const activeScheduleData = selectedArchive && archiveData ? archiveData : allScheduleData;
@@ -271,29 +271,30 @@ const weeks = Array.from({ length: COURSE_SETTINGS.totalWeeks }, (_, i) => {
     }
   };
 
+  // 🌟 دالة الحضور والغياب الكلي المحسنة 🌟
   const handleBulkAttendance = async (weekIdx, dayName, dayInfo, actionType) => {
     if (!user) return showToast("يجب تسجيل الدخول!", "error");
     if (selectedArchive !== null) return;
     if (!dayInfo || !dayInfo.subjects) return;
 
     const updates = {};
-    dayInfo.subjects.forEach((subj, idx) => {
-      const currentStatus = userAttendance[`week_${weekIdx}`]?.[dayName]?.[idx];
+    dayInfo.subjects.forEach((subj) => {
+      const subjId = subj.id; // الاعتماد على معرّف المادة الثابت ID بدلاً من Index
+      const currentStatus = userAttendance[`week_${weekIdx}`]?.[dayName]?.[subjId];
       
       if (actionType === 'all_present' || actionType === 'all_absent') {
-        updates[idx] = actionType === 'all_present' ? 'present' : 'absent';
+        updates[subjId] = actionType === 'all_present' ? 'present' : 'absent';
       } else if (actionType === 'rest_present' || actionType === 'rest_absent') {
         if (!currentStatus) {
-          updates[idx] = actionType === 'rest_present' ? 'present' : 'absent';
-        } else {
-           updates[idx] = currentStatus; 
+          updates[subjId] = actionType === 'rest_present' ? 'present' : 'absent';
         }
       }
     });
 
     try {
+      // استخدام update بدلاً من set لعدم مسح بيانات الحضور للمواد المخفية أو الكروبات الأخرى
       const dbRef = ref(database, `users/${user.uid}/attendance/week_${weekIdx}/${dayName}`);
-      await set(dbRef, updates);
+      await update(dbRef, updates);
       if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
     } catch (error) {
       showToast("حدث خطأ في التسجيل الكلي", "error");
@@ -355,17 +356,17 @@ const weeks = Array.from({ length: COURSE_SETTINGS.totalWeeks }, (_, i) => {
     });
 
     const calculateCurrentWeek = () => {
-   const calculationStartDate = new Date(COURSE_SETTINGS.startDate);
-   calculationStartDate.setHours(12, 0, 0, 0);
-   const today = new Date();
-   today.setHours(12, 0, 0, 0);
-   const diffTime = today.getTime() - calculationStartDate.getTime();
-   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-   let calculatedWeek = Math.floor(diffDays / 7);
-   if (calculatedWeek < 0) calculatedWeek = 0;
-   if (calculatedWeek >= COURSE_SETTINGS.totalWeeks) calculatedWeek = COURSE_SETTINGS.totalWeeks - 1;
-   setCurrentWeek(calculatedWeek);
- };
+      const calculationStartDate = new Date(COURSE_SETTINGS.startDate);
+      calculationStartDate.setHours(12, 0, 0, 0);
+      const today = new Date();
+      today.setHours(12, 0, 0, 0);
+      const diffTime = today.getTime() - calculationStartDate.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      let calculatedWeek = Math.floor(diffDays / 7);
+      if (calculatedWeek < 0) calculatedWeek = 0;
+      if (calculatedWeek >= COURSE_SETTINGS.totalWeeks) calculatedWeek = COURSE_SETTINGS.totalWeeks - 1;
+      setCurrentWeek(calculatedWeek);
+    };
 
     calculateCurrentWeek();
   }, []);
@@ -515,18 +516,19 @@ const weeks = Array.from({ length: COURSE_SETTINGS.totalWeeks }, (_, i) => {
   }
 
   const getDateForDay = (dayIndex, weekIndex = currentWeek) => {
-const startDate = new Date(COURSE_SETTINGS.startDate);
-startDate.setDate(startDate.getDate() + (weekIndex * 7) + dayIndex);
-return startDate;
-}
+    const startDate = new Date(COURSE_SETTINGS.startDate);
+    startDate.setDate(startDate.getDate() + (weekIndex * 7) + dayIndex);
+    return startDate;
+  }
+
   const allAssignmentsList = [];
-  for (let w = 0; w < 15; w++) {
+  for (let w = 0; w < COURSE_SETTINGS.totalWeeks; w++) {
     const weekKey = `week_${w}`;
     if (activeScheduleData[weekKey]) {
       days.forEach((day, dIdx) => {
         const dayData = activeScheduleData[weekKey][day];
-        if (dayData && Array.isArray(dayData.subjects)) {
-          dayData.subjects.forEach(subj => {
+        if (dayData && Array.isArray(dayData.dynamicEvents)) {
+          dayData.dynamicEvents.forEach(subj => {
             if (subj.type === "واجب" || subj.type === "تقرير") {
               const targetDate = getDateForDay(dIdx, w);
               targetDate.setHours(23, 59, 59, 999);
@@ -737,8 +739,6 @@ return startDate;
                     markAttendance={markAttendance}
                     handleBulkAttendance={handleBulkAttendance}
                     showToast={showToast}
-                    
-                    // 🌟 تمرير الخصائص الجديدة 🌟
                     activeGroup={activeGroup}
                     isAdminMode={isAdminMode}
                     userRole={userRole}
@@ -827,8 +827,6 @@ return startDate;
         <Profile 
           user={user} 
           navigate={navigate} 
-          totalPresent={totalPresent} 
-          totalAbsent={totalAbsent} 
           handleLogout={handleLogout}
           userAttendance={userAttendance}
           allScheduleData={allScheduleData}

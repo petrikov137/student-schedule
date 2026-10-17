@@ -800,6 +800,7 @@ function StudentView() {
       {/* ===================== الأقسام المفصولة ===================== */}
       {activeTab === 'materials' && (
         <MaterialsTab 
+        user={user}
         availableSubjects={currentAvailableSubjects}
           selectedSubject={selectedSubject}
           setSelectedSubject={setSelectedSubject}

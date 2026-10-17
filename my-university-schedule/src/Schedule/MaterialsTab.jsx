@@ -4,13 +4,13 @@ import { ref, set, remove } from 'firebase/database';
 import { database } from '../firebase';
 import localforage from 'localforage';
 
-// 🌟 استيراد محركات القراءة محلياً لضمان العمل بدون إنترنت 100% 🌟
+// 🌟 استيراد محركات القراءة محلياً داخل حزمة Vite لضمان العمل 100% دون إنترنت 🌟
 import * as pdfjsLib from 'pdfjs-dist/build/pdf';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
+import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import JSZip from 'jszip';
 import mammoth from 'mammoth';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 // تهيئة قاعدة البيانات المحلية داخل Versa لحفظ الملفات الضخمة بدون إنترنت
 const offlineStore = localforage.createInstance({
@@ -31,7 +31,7 @@ const TrashIcon = () => (
   </svg>
 );
 
-// --- 🧠 دوال معالجة الروابط والتعرف الدقيق على البصمة الرقمية للملفات ---
+// --- 🧠 دوال معالجة الروابط والفحص الجذري لمحتوى الملفات ---
 const extractDriveFileId = (url) => {
   if (!url) return null;
   const patterns = [
@@ -48,6 +48,17 @@ const extractDriveFileId = (url) => {
   return null;
 };
 
+const isPresentationOrDocHint = (name = '', url = '') => {
+  const combined = `${name} ${url}`.toLowerCase();
+  return (
+    combined.includes('/presentation/') ||
+    combined.includes('/document/') ||
+    /\.(pptx|ppt|docx|doc)\b/.test(combined) ||
+    combined.includes('powerpoint') ||
+    combined.includes('بوربوينت')
+  );
+};
+
 const getDirectDownloadUrl = (url) => {
   const fileId = extractDriveFileId(url);
   if (fileId) {
@@ -56,50 +67,57 @@ const getDirectDownloadUrl = (url) => {
   return url;
 };
 
-const getOnlineEmbedUrl = (url, fileType) => {
+const getOnlineEmbedUrl = (url, fileName = '') => {
   const fileId = extractDriveFileId(url);
   if (fileId) {
+    if (url.includes('/presentation/')) {
+      return `https://docs.google.com/presentation/d/${fileId}/embed?start=false&loop=false`;
+    }
     return `https://drive.google.com/file/d/${fileId}/preview`;
   }
-  if (fileType === 'word' || fileType === 'ppt') {
+  const combined = `${fileName} ${url}`.toLowerCase();
+  if (/\.(docx|doc|pptx|ppt)\b/.test(combined)) {
     return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
   }
   return url;
 };
 
-// 🌟 الفحص الجذري: الأولوية القصوى للبصمة الرقمية الحقيقية (Magic Bytes) وليس لاسم الملف 🌟
-const detectFileType = async (blob, fileName = '', url = '') => {
-  if (blob) {
-    try {
-      const headerBuffer = await blob.slice(0, 8).arrayBuffer();
-      const bytes = new Uint8Array(headerBuffer);
-
-      // 1. إذا كانت البصمة %PDF (25 50 44 46) فهو قطعاً ملف PDF حتى لو كان اسمه بوربوينت!
-      if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
-        return 'pdf';
-      }
-
-      // 2. إذا كانت البصمة PK (50 4B 03 04) فهو حاوية Office Open XML حديثة (.pptx أو .docx)
-      if (bytes[0] === 0x50 && bytes[1] === 0x4B) {
-        const zip = await JSZip.loadAsync(blob);
-        if (zip.files['ppt/presentation.xml']) return 'ppt';
-        if (zip.files['word/document.xml']) return 'word';
-      }
-
-      // 3. بصمة ملفات الأوفيس القديمة جداً (D0 CF 11 E0 - Binary OLE2 مثل .ppt أو .doc القديم)
-      if (bytes[0] === 0xD0 && bytes[1] === 0xCF && bytes[2] === 0x11 && bytes[3] === 0xE0) {
-        return 'legacy_office';
-      }
-    } catch (e) {
-      console.error('Magic bytes detection error:', e);
-    }
+// 🌟 فحص البصمة الحقيقية وهيكلية الملف من الداخل قبل قبوله أو عرضه 🌟
+const inspectBlobContent = async (blob) => {
+  if (!blob || blob.size < 64) {
+    return { valid: false, reason: 'EMPTY_FILE' };
   }
 
-  // للروابط الأونلاين فقط (في وضع الزائر حيث لا يوجد Blob)
-  const combined = `${fileName} ${url}`.toLowerCase();
-  if (combined.match(/\.(docx|doc)\b/)) return 'word';
-  if (combined.match(/\.(pptx|ppt)\b/) || combined.includes('/presentation/')) return 'ppt';
-  return 'pdf';
+  try {
+    const headerBuffer = await blob.slice(0, 8).arrayBuffer();
+    const bytes = new Uint8Array(headerBuffer);
+
+    // 1. فحص بصمة PDF (%PDF-)
+    if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
+      return { valid: true, fileType: 'pdf', mime: 'application/pdf' };
+    }
+
+    // 2. فحص بصمة Office Open XML الحديثة (PK\x03\x04) والتحقق من الملفات الداخلية
+    if (bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04) {
+      const zip = await JSZip.loadAsync(blob);
+      if (zip.files['ppt/presentation.xml']) {
+        return { valid: true, fileType: 'ppt', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' };
+      }
+      if (zip.files['word/document.xml']) {
+        return { valid: true, fileType: 'word', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+      }
+      return { valid: false, reason: 'UNSUPPORTED_ZIP_ARCHIVE' };
+    }
+
+    // 3. فحص بصمة ملفات الأوفيس القديمة Binary OLE2 (.ppt / .doc 97-2003)
+    if (bytes[0] === 0xD0 && bytes[1] === 0xCF && bytes[2] === 0x11 && bytes[3] === 0xE0) {
+      return { valid: false, reason: 'LEGACY_BINARY_OFFICE' };
+    }
+
+    return { valid: false, reason: 'INVALID_OR_HTML_RESPONSE' };
+  } catch (err) {
+    return { valid: false, reason: 'CORRUPTED_DATA' };
+  }
 };
 
 const formatFilesCount = (count) => {
@@ -110,15 +128,26 @@ const formatFilesCount = (count) => {
   return `${count} ملف`;
 };
 
+const escapeHtml = (str = '') =>
+  str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
 // =========================================================================
-// 🖥️ محركات العرض المحلية بدون إنترنت (PDF + Word + PowerPoint مع الصور)
+// 🖥️ محرك تحليل وعرض ملفات PPTX و DOCX دون إنترنت (يدعم النصوص، الجداول، الصور، والتنسيق)
 // =========================================================================
 async function renderOfflineOfficeFile(blob, fileType) {
   const arrayBuffer = await blob.arrayBuffer();
 
   if (fileType === 'word') {
     const result = await mammoth.convertToHtml({ arrayBuffer });
-    return `<div style="max-width:800px;margin:0 auto;background:#fff;color:#111;padding:24px;border-radius:12px;line-height:1.8;direction:auto;font-size:15px;">${result.value || 'المستند فارغ'}</div>`;
+    return `
+      <div style="max-width:820px;margin:0 auto;background:#ffffff;color:#111827;padding:28px 24px;border-radius:14px;line-height:1.85;direction:auto;font-size:15px;box-shadow:0 10px 30px rgba(0,0,0,0.35);">
+        ${result.value || '<p style="text-align:center;color:#6b7280;">المستند لا يحتوي على نصوص قابلة للعرض</p>'}
+      </div>
+    `;
   }
 
   if (fileType === 'ppt') {
@@ -126,98 +155,197 @@ async function renderOfflineOfficeFile(blob, fileType) {
     const slideFiles = Object.keys(zip.files)
       .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
       .sort((a, b) => {
-        const numA = parseInt(a.match(/slide(\d+)\.xml/)[1]);
-        const numB = parseInt(b.match(/slide(\d+)\.xml/)[1]);
+        const numA = parseInt(a.match(/slide(\d+)\.xml/)[1], 10);
+        const numB = parseInt(b.match(/slide(\d+)\.xml/)[1], 10);
         return numA - numB;
       });
 
     if (slideFiles.length === 0) {
-      throw new Error('NO_SLIDES_FOUND');
+      throw new Error('NO_SLIDES_IN_PPTX');
     }
 
-    let slidesHtml = '<div style="display:flex;flex-direction:column;gap:18px;max-width:850px;margin:0 auto;">';
-    
+    const parser = new DOMParser();
+    let slidesHtml = '<div style="display:flex;flex-direction:column;gap:22px;max-width:900px;margin:0 auto;padding-bottom:30px;">';
+
     for (let i = 0; i < slideFiles.length; i++) {
       const slidePath = slideFiles[i];
       const slideNum = slidePath.match(/slide(\d+)\.xml/)[1];
       const xmlText = await zip.file(slidePath).async('string');
-      const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
 
-      // 1. استخراج النصوص مرتبة حسب الفقرات (<a:p>)
-      const pNodes = xmlDoc.getElementsByTagName('a:p');
-      let paragraphs = [];
-      for (let p = 0; p < pNodes.length; p++) {
-        const tNodes = pNodes[p].getElementsByTagName('a:t');
-        let line = '';
-        for (let t = 0; t < tNodes.length; t++) {
-          line += tNodes[t].textContent;
-        }
-        if (line.trim()) paragraphs.push(line.trim());
-      }
-
-      // 2. استخراج الصور المدمجة داخل الشريحة إن وجدت
-      let imagesHtml = '';
+      // 1. بناء خريطة العلاقات (Relationships) للصور داخل الشريحة
+      const relMap = {};
       const relsPath = `ppt/slides/_rels/slide${slideNum}.xml.rels`;
       if (zip.files[relsPath]) {
         const relsXml = await zip.file(relsPath).async('string');
         const relsDoc = parser.parseFromString(relsXml, 'application/xml');
-        const relationships = relsDoc.getElementsByTagName('Relationship');
-        for (let r = 0; r < relationships.length; r++) {
-          const target = relationships[r].getAttribute('Target') || '';
-          if (target.includes('../media/')) {
-            const mediaPath = `ppt/media/${target.split('../media/')[1]}`;
-            if (zip.files[mediaPath] && /\.(png|jpg|jpeg|gif|webp)$/i.test(mediaPath)) {
-              const imgBase64 = await zip.file(mediaPath).async('base64');
-              const ext = mediaPath.split('.').pop().toLowerCase();
-              const mime = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
-              imagesHtml += `<img src="data:${mime};base64,${imgBase64}" style="max-width:100%;border-radius:10px;margin-top:12px;display:block;margin-left:auto;margin-right:auto;" />`;
-            }
+        const relNodes = relsDoc.getElementsByTagName('Relationship');
+        for (let r = 0; r < relNodes.length; r++) {
+          const rId = relNodes[r].getAttribute('Id');
+          const target = relNodes[r].getAttribute('Target') || '';
+          if (rId && target.includes('media/')) {
+            const cleanMediaName = target.split('media/').pop();
+            relMap[rId] = `ppt/media/${cleanMediaName}`;
           }
         }
       }
 
+      // 2. استخراج الأشكال النصية والعناوين (<p:sp>)
+      let titleHtml = '';
+      let bodyBlocksHtml = '';
+      const spNodes = xmlDoc.getElementsByTagName('p:sp');
+
+      for (let s = 0; s < spNodes.length; s++) {
+        const sp = spNodes[s];
+        const phNode = sp.getElementsByTagName('p:ph')[0];
+        const phType = phNode ? (phNode.getAttribute('type') || '') : '';
+        const isTitle = phType === 'title' || phType === 'ctrTitle' || (s === 0 && !titleHtml && phType !== 'body');
+
+        const pNodes = sp.getElementsByTagName('a:p');
+        let shapeLines = [];
+
+        for (let p = 0; p < pNodes.length; p++) {
+          const tNodes = pNodes[p].getElementsByTagName('a:t');
+          let lineText = '';
+          for (let t = 0; t < tNodes.length; t++) {
+            lineText += tNodes[t].textContent;
+          }
+          if (lineText.trim()) {
+            shapeLines.push(escapeHtml(lineText.trim()));
+          }
+        }
+
+        if (shapeLines.length > 0) {
+          if (isTitle && !titleHtml) {
+            titleHtml = `<h3 style="margin:0 0 14px 0;color:#38bdf8;font-size:19px;font-weight:bold;line-height:1.45;direction:auto;">${shapeLines.join('<br/>')}</h3>`;
+          } else {
+            bodyBlocksHtml += `
+              <div style="margin-bottom:12px;direction:auto;">
+                ${shapeLines.map(line => `<div style="margin-bottom:6px;font-size:15px;line-height:1.7;color:#f4f4f5;">• ${line}</div>`).join('')}
+              </div>
+            `;
+          }
+        }
+      }
+
+      // 3. استخراج الجداول (<a:tbl>) إن وجدت في الشريحة
+      let tablesHtml = '';
+      const tblNodes = xmlDoc.getElementsByTagName('a:tbl');
+      for (let tb = 0; tb < tblNodes.length; tb++) {
+        const trNodes = tblNodes[tb].getElementsByTagName('a:tr');
+        let rowsHtml = '';
+        for (let r = 0; r < trNodes.length; r++) {
+          const tcNodes = trNodes[r].getElementsByTagName('a:tc');
+          let cellsHtml = '';
+          for (let c = 0; c < tcNodes.length; c++) {
+            const tNodes = tcNodes[c].getElementsByTagName('a:t');
+            let cellText = '';
+            for (let t = 0; t < tNodes.length; t++) cellText += tNodes[t].textContent + ' ';
+            const cellStyle = r === 0
+              ? 'background:rgba(56,189,248,0.15);color:#38bdf8;font-weight:bold;'
+              : 'background:rgba(255,255,255,0.03);color:#e4e4e7;';
+            cellsHtml += `<td style="border:1px solid rgba(255,255,255,0.12);padding:8px 10px;font-size:13px;${cellStyle}">${escapeHtml(cellText.trim())}</td>`;
+          }
+          rowsHtml += `<tr>${cellsHtml}</tr>`;
+        }
+        if (rowsHtml) {
+          tablesHtml += `<div style="overflow-x:auto;margin:12px 0;"><table style="width:100%;border-collapse:collapse;direction:auto;">${rowsHtml}</table></div>`;
+        }
+      }
+
+      // 4. استخراج الصور المرتبطة بالشريحة
+      let imagesHtml = '';
+      const blipNodes = xmlDoc.getElementsByTagName('a:blip');
+      const usedMediaPaths = new Set();
+
+      for (let b = 0; b < blipNodes.length; b++) {
+        const embedId = blipNodes[b].getAttribute('r:embed');
+        const mediaPath = relMap[embedId];
+        if (mediaPath && zip.files[mediaPath] && !usedMediaPaths.has(mediaPath)) {
+          if (/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(mediaPath)) {
+            usedMediaPaths.add(mediaPath);
+            const base64 = await zip.file(mediaPath).async('base64');
+            const ext = mediaPath.split('.').pop().toLowerCase();
+            const mime = ext === 'jpg' ? 'image/jpeg' : ext === 'svg' ? 'image/svg+xml' : `image/${ext}`;
+            imagesHtml += `
+              <div style="margin-top:14px;text-align:center;">
+                <img src="data:${mime};base64,${base64}" style="max-width:100%;max-height:420px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);object-fit:contain;background:#fff;" />
+              </div>
+            `;
+          }
+        }
+      }
+
+      const hasContent = titleHtml || bodyBlocksHtml || tablesHtml || imagesHtml;
+
       slidesHtml += `
-        <div style="background:#1e1e24;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:22px;box-shadow:0 8px 20px rgba(0,0,0,0.25);direction:auto;">
-          <div style="color:var(--primary-color);font-size:12px;font-weight:bold;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:6px;">
-            شريحة ${i + 1} من ${slideFiles.length}
+        <div style="background:linear-gradient(145deg, #1c1c22, #141418);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:24px 20px;box-shadow:0 10px 25px rgba(0,0,0,0.35);position:relative;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.07);">
+            <span style="color:var(--primary-color);font-size:12px;font-weight:bold;background:rgba(0,148,247,0.12);padding:4px 10px;border-radius:8px;">
+              شريحة ${i + 1} / ${slideFiles.length}
+            </span>
           </div>
-          <div style="font-size:15px;line-height:1.75;color:#f4f4f5;">
-            ${paragraphs.length > 0 ? paragraphs.map(p => `<div style="margin-bottom:8px;">• ${p}</div>`).join('') : ''}
-          </div>
+          ${titleHtml}
+          ${bodyBlocksHtml}
+          ${tablesHtml}
           ${imagesHtml}
+          ${!hasContent ? '<div style="color:#71717a;font-size:13px;text-align:center;padding:20px 0;">(شريحة رسومية أو فارغة)</div>' : ''}
         </div>
       `;
     }
+
     slidesHtml += '</div>';
     return slidesHtml;
   }
+
+  throw new Error('UNSUPPORTED_OFFICE_TYPE');
 }
 
+// محرك عرض ملفات PDF (أو ملفات البوربوينت المحولة إلى PDF) كشرائح وصفحات عالية الدقة دون إنترنت
 async function renderOfflinePdfFile(blob, containerElement) {
   const arrayBuffer = await blob.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  
-  containerElement.innerHTML = ''; 
-  
+  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+  const pdf = await loadingTask.promise;
+
+  containerElement.innerHTML = '';
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const baseScale = window.innerWidth < 768 ? 1.2 : 1.5;
+
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: window.innerWidth < 768 ? 1.3 : 1.6 });
+    const viewport = page.getViewport({ scale: baseScale * dpr });
+
+    const wrapper = document.createElement('div');
+    wrapper.style.marginBottom = '14px';
+    wrapper.style.borderRadius = '10px';
+    wrapper.style.overflow = 'hidden';
+    wrapper.style.boxShadow = '0 6px 18px rgba(0,0,0,0.35)';
+    wrapper.style.backgroundColor = '#ffffff';
+
     const canvas = document.createElement('canvas');
-    canvas.width = viewport.width; 
+    canvas.width = viewport.width;
     canvas.height = viewport.height;
-    canvas.style.width = '100%'; 
-    canvas.style.maxWidth = '100%';
-    canvas.style.marginBottom = '12px'; 
-    canvas.style.borderRadius = '8px';
-    canvas.style.backgroundColor = '#fff';
-    containerElement.appendChild(canvas);
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
+    canvas.style.display = 'block';
+
+    wrapper.appendChild(canvas);
+    containerElement.appendChild(wrapper);
+
+    await page.render({
+      canvasContext: canvas.getContext('2d'),
+      viewport
+    }).promise;
   }
 }
 
+// =========================================================================
+// 🖥️ مكون العارض بملء الشاشة
+// =========================================================================
 const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
   const [officeHtml, setOfficeHtml] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const pdfContainerRef = useRef(null);
@@ -235,42 +363,50 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
 
   useEffect(() => {
     if (!viewerData) return;
-
     let isCancelled = false;
 
-    const processOfflineDocument = async () => {
+    const renderOffline = async () => {
       if (!viewerData.isOffline || !viewerData.blob) return;
 
       setIsParsing(true);
       setOfficeHtml('');
+      setErrorMessage('');
+      if (pdfContainerRef.current) pdfContainerRef.current.innerHTML = '';
 
       try {
-        // فحص البصمة الحقيقية للملف المحفوظ قبل فتحه مباشرة (حتى لو كان مخزناً قديماً بتصنيف خاطئ)
-        const actualType = await detectFileType(viewerData.blob, viewerData.title, '');
+        // فحص البصمة الحقيقية للـ Blob المخزن بغض النظر عن التسمية القديمة
+        const inspection = await inspectBlobContent(viewerData.blob);
 
-        if (actualType === 'pdf') {
+        if (!inspection.valid) {
+          if (!isCancelled) {
+            if (inspection.reason === 'LEGACY_BINARY_OFFICE') {
+              setErrorMessage('هذا الملف بصيغة PowerPoint/Word قديمة (97-2003). يرجى رفعه بصيغة PPTX حديثة أو PDF ليعمل دون إنترنت.');
+            } else {
+              setErrorMessage('الملف المحفوظ سابقاً غير صالح أو تالف. اضغط مطولاً على بطاقة الملف لحذفه ثم أعد تحميله.');
+            }
+          }
+          return;
+        }
+
+        if (inspection.fileType === 'pdf') {
           if (pdfContainerRef.current) {
             await renderOfflinePdfFile(viewerData.blob, pdfContainerRef.current);
           }
-        } else if (actualType === 'word' || actualType === 'ppt') {
-          const html = await renderOfflineOfficeFile(viewerData.blob, actualType);
+        } else if (inspection.fileType === 'ppt' || inspection.fileType === 'word') {
+          const html = await renderOfflineOfficeFile(viewerData.blob, inspection.fileType);
           if (!isCancelled) setOfficeHtml(html);
-        } else if (actualType === 'legacy_office') {
-          if (!isCancelled) {
-            setOfficeHtml('<div style="text-align:center;padding:40px;color:#f59e0b;">هذا الملف بصيغة أوفيس قديمة (97-2003). يرجى رفعه بصيغة حديثة (PPTX أو PDF) ليعمل بدون إنترنت.</div>');
-          }
         }
       } catch (err) {
-        console.error('Offline render error:', err);
+        console.error('Offline Viewer Error:', err);
         if (!isCancelled) {
-          setOfficeHtml('<div style="text-align:center;padding:40px;color:#ef4444;">تعذر قراءة الملف محلياً. احذف الملف بالضغط المطول ثم أعد تحميله.</div>');
+          setErrorMessage('تعذر تحليل وعرض هذا الملف محلياً. يرجى حذفه بالضغط المطول وإعادة تحميله.');
         }
       } finally {
         if (!isCancelled) setIsParsing(false);
       }
     };
 
-    processOfflineDocument();
+    renderOffline();
     return () => { isCancelled = true; };
   }, [viewerData]);
 
@@ -335,30 +471,37 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
                 <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255, 255, 255, 0.2)', borderTopColor: 'var(--primary-color)', borderRadius: '50%', animation: 'versaSpin 0.65s linear infinite' }} />
               </div>
             )}
-            {/* حاوية PDF المحلية */}
-            <div 
-              ref={pdfContainerRef} 
-              style={{ 
-                padding: '15px', maxWidth: '900px', margin: '0 auto', 
-                display: (!isParsing && !officeHtml) ? 'block' : 'none' 
-              }} 
+
+            {errorMessage && !isParsing && (
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center', color: '#ef4444', fontSize: '14px', fontWeight: 'bold', lineHeight: '1.7' }}>
+                {errorMessage}
+              </div>
+            )}
+
+            <div
+              ref={pdfContainerRef}
+              style={{
+                padding: '15px',
+                maxWidth: '900px',
+                margin: '0 auto',
+                display: (!isParsing && !officeHtml && !errorMessage) ? 'block' : 'none'
+              }}
             />
-            {/* حاوية PowerPoint / Word المحلية */}
-            {officeHtml && !isParsing && (
-              <div 
-                dangerouslySetInnerHTML={{ __html: officeHtml }} 
-                style={{ padding: '20px', boxSizing: 'border-box', color: '#f4f4f5' }} 
+
+            {officeHtml && !isParsing && !errorMessage && (
+              <div
+                dangerouslySetInnerHTML={{ __html: officeHtml }}
+                style={{ padding: '18px', boxSizing: 'border-box', color: '#f4f4f5' }}
               />
             )}
           </>
         ) : !isOnline ? (
-          // منع ظهور شاشة الديناصور في وضع الزائر عند انقطاع الإنترنت
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '25px', textAlign: 'center', color: 'var(--text-muted)' }}>
             <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--text-pure)', marginBottom: '8px' }}>
               لا يوجد اتصال بالإنترنت
             </div>
             <div style={{ fontSize: '13px', maxWidth: '300px', lineHeight: '1.6' }}>
-              وضع الزائر يتطلب اتصالاً بالإنترنت لعرض الملفات. سجل دخولك وقم بتحميل الملزمة لتتمكن من فتحها بدون إنترنت.
+              العرض المباشر لوضع الزائر يتطلب اتصالاً بالإنترنت. سجل دخولك وحمّل الملف ليُحفظ داخل حسابك ويعمل دون إنترنت.
             </div>
           </div>
         ) : (
@@ -375,6 +518,9 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
   );
 };
 
+// =========================================================================
+// 🗂️ المكون الرئيسي MaterialsTab
+// =========================================================================
 export default function MaterialsTab({ 
   user = null,
   availableSubjects = [], 
@@ -401,6 +547,7 @@ export default function MaterialsTab({
   const [matUrl, setMatUrl] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // فحص الملفات المحفوظة في حساب المستخدم والتأكد من صلاحيتها
   useEffect(() => {
     let isMounted = true;
     const checkUserSavedFiles = async () => {
@@ -438,14 +585,14 @@ export default function MaterialsTab({
     setSelectedSubject(selectedSubject === subjName ? null : subjName);
   };
 
-  // --- ⚡ دالة تحميل الملف وحفظه داخل حساب المستخدم في Versa ⚡ ---
+  // --- ⚡ دالة تنزيل الملف وتحويله/فحصه وحفظه للعمل دون إنترنت ⚡ ---
   const handleDownloadToAccount = async (mat, e) => {
     e.stopPropagation();
     if (!user) return;
     if (downloadingMap[mat.id]) return;
 
     if (!navigator.onLine) {
-      return showToast('لا يوجد اتصال بالإنترنت لتحميل الملف', 'error');
+      return showToast('يرجى الاتصال بالإنترنت لتنزيل الملف لأول مرة', 'error');
     }
 
     setDownloadingMap(prev => ({ ...prev, [mat.id]: true }));
@@ -453,55 +600,63 @@ export default function MaterialsTab({
     try {
       const fileId = extractDriveFileId(mat.url);
       const targetUrl = getDirectDownloadUrl(mat.url);
-      
+      const preferPdf = isPresentationOrDocHint(mat.name, mat.url) ? '1' : '0';
+
+      // مسارات الجلب بالترتيب:
+      // 1. خادم Vercel المحلي مع تفضيل التحويل إلى PDF لعروض البوربوينت لضمان تطابق الشرائح 100%
+      // 2. مسار التصدير إلى PDF عبر البروكسي (لبيئة التطوير Localhost)
+      // 3. مسار التحميل المباشر لملفات PDF و PPTX عبر البروكسي
       const fetchCandidates = [
-        // 1. خادم Vercel الخاص بك
-        fileId ? `/api/drive?id=${fileId}` : null,
-        // 2. إذا كان العرض التقديمي Google Slides أو مستند على Localhost نحوله لـ PDF ليعمل بأعلى دقة
-        fileId ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://docs.google.com/presentation/d/${fileId}/export/pdf`)}` : null,
-        // 3. بروكسي بديل للروابط المباشرة على Localhost
+        fileId ? `/api/drive?id=${fileId}&preferPdf=${preferPdf}` : null,
+        (fileId && preferPdf === '1')
+          ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://docs.google.com/presentation/d/${fileId}/export/pdf`)}`
+          : null,
+        fileId
+          ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://docs.google.com/document/d/${fileId}/export?format=pdf`)}`
+          : null,
         `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-        fileId ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://docs.google.com/document/d/${fileId}/export?format=pdf`)}` : null
+        fileId
+          ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://docs.google.com/presentation/d/${fileId}/export/pdf`)}`
+          : null
       ].filter(Boolean);
 
-      let fetchedBlob = null;
+      let validBlob = null;
+      let detectedType = null;
+      let specificError = null;
 
       for (const candidate of fetchCandidates) {
         try {
           const response = await fetch(candidate);
-          if (response.ok) {
-            const blob = await response.blob();
-            if (blob.size > 500 && !blob.type.includes('text/html')) {
-              // التأكد من أن البصمة الرقمية للملف صالحة (PDF أو Office ZIP)
-              const headerBuffer = await blob.slice(0, 4).arrayBuffer();
-              const bytes = new Uint8Array(headerBuffer);
-              const isPdf = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
-              const isZip = bytes[0] === 0x50 && bytes[1] === 0x4B;
-              if (isPdf || isZip) {
-                fetchedBlob = blob;
-                break;
-              }
-            }
+          if (response.status === 415) {
+            specificError = 'صيغة الملف قديمة (.ppt). يرجى رفعه بصيغة PPTX أو PDF';
+            break;
+          }
+          if (!response.ok) continue;
+
+          const blob = await response.blob();
+          const inspection = await inspectBlobContent(blob);
+
+          if (inspection.valid) {
+            validBlob = new Blob([blob], { type: inspection.mime });
+            detectedType = inspection.fileType;
+            break;
+          } else if (inspection.reason === 'LEGACY_BINARY_OFFICE') {
+            specificError = 'صيغة الملف قديمة (.ppt). يرجى رفعه بصيغة PPTX أو PDF';
           }
         } catch (err) {
-          // الانتقال للبوابة التالية تلقائياً
+          // الانتقال للمسار البديل
         }
       }
 
-      if (!fetchedBlob) {
-        throw new Error('CORS_OR_NETWORK_BLOCK');
+      if (!validBlob || !detectedType) {
+        throw new Error(specificError || 'تعذر تنزيل الملف، تأكد من أن صلاحية رابط Drive عامة');
       }
-
-      const detectedType = await detectFileType(fetchedBlob, mat.name, mat.url);
-      const finalBlob = detectedType === 'pdf' 
-        ? new Blob([fetchedBlob], { type: 'application/pdf' }) 
-        : fetchedBlob;
 
       const storageKey = `user_${user.uid}_mat_${mat.id}`;
       await offlineStore.setItem(storageKey, {
         id: mat.id,
         name: mat.name,
-        blob: finalBlob,
+        blob: validBlob,
         fileType: detectedType,
         savedAt: Date.now()
       });
@@ -509,17 +664,16 @@ export default function MaterialsTab({
       setDownloadedMap(prev => ({ ...prev, [mat.id]: true }));
       if (navigator.vibrate) navigator.vibrate(40);
     } catch (error) {
-      showToast('تعذر الحفظ المحلي، تأكد من أن رابط Drive عام', 'error');
+      showToast(error.message || 'تعذر الحفظ المحلي، تأكد من أن رابط Drive عام', 'error');
     } finally {
       setDownloadingMap(prev => ({ ...prev, [mat.id]: false }));
     }
   };
 
-  // --- 🖥️ دالة عرض الملف بملء الشاشة (أوفلاين للمحمل / أونلاين للضيف) ---
+  // --- 🖥️ دالة فتح وعرض الملف بملء الشاشة ---
   const handleOpenFullscreenViewer = async (mat, e) => {
     e.stopPropagation();
 
-    // 1. إذا كان المستخدم مسجلاً والملف محمل في حسابه -> يفتح بدون إنترنت فوراً
     if (user && downloadedMap[mat.id]) {
       try {
         const storageKey = `user_${user.uid}_mat_${mat.id}`;
@@ -538,14 +692,12 @@ export default function MaterialsTab({
       }
     }
 
-    // 2. في وضع الضيف -> يفتح عبر الإنترنت بملء الشاشة
-    const guessedType = await detectFileType(null, mat.name, mat.url);
-    const embedUrl = getOnlineEmbedUrl(mat.url, guessedType);
+    // وضع الزائر (أونلاين)
+    const embedUrl = getOnlineEmbedUrl(mat.url, mat.name);
     setViewerData({
       title: mat.name,
       isOffline: false,
-      onlineUrl: embedUrl,
-      fileType: guessedType
+      onlineUrl: embedUrl
     });
   };
 

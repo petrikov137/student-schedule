@@ -1,13 +1,10 @@
+//must be the final
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ref, set, remove } from 'firebase/database';
 import { database } from '../firebase';
 import localforage from 'localforage';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// 🌟 الحل الجذري والنهائي: استخدام رابط ثابت للإصدار المستقر 3.11.174 لمنع أي خطأ 404 للأبد 🌟
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 // تهيئة قاعدة البيانات المحلية لحفظ الملفات
 const offlineStore = localforage.createInstance({
@@ -53,14 +50,13 @@ const getOnlineEmbedUrl = (url) => {
   return url;
 };
 
-// فحص بسيط للتأكد من أن الملف المحمل هو فعلاً PDF
+// فحص للتأكد من أن الملف هو PDF حقيقي وليس صفحة خطأ
 const inspectBlobIsPdf = async (blob) => {
   if (!blob || blob.size < 64) return false;
   try {
     const headerBuffer = await blob.slice(0, 4).arrayBuffer();
     const bytes = new Uint8Array(headerBuffer);
-    // %PDF
-    return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+    return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46; // يمثل %PDF
   } catch (err) {
     return false;
   }
@@ -75,67 +71,13 @@ const formatFilesCount = (count) => {
 };
 
 // =========================================================================
-// 🖥️ محرك عرض PDF بدون إنترنت
-// =========================================================================
-async function renderOfflinePdfFile(blob, containerElement) {
-  const arrayBuffer = await blob.arrayBuffer();
-  
-  // 🌟 إرفاق CMaps بروابط ثابتة ومضمونة 100% لدعم الخطوط العربية المعقدة 🌟
-  const cMapUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/`;
-  const standardFontDataUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/`;
-
-  const loadingTask = pdfjsLib.getDocument({ 
-    data: arrayBuffer,
-    cMapUrl: cMapUrl,
-    cMapPacked: true,
-    standardFontDataUrl: standardFontDataUrl,
-  });
-  
-  const pdf = await loadingTask.promise;
-  containerElement.innerHTML = '';
-
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const baseScale = window.innerWidth < 768 ? 1.2 : 1.5;
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: baseScale * dpr });
-
-    const wrapper = document.createElement('div');
-    wrapper.style.marginBottom = '20px';
-    wrapper.style.borderRadius = '10px';
-    wrapper.style.overflow = 'hidden';
-    wrapper.style.boxShadow = '0 8px 25px rgba(0,0,0,0.35)';
-    wrapper.style.backgroundColor = '#ffffff';
-    wrapper.style.display = 'flex';
-    wrapper.style.justifyContent = 'center';
-
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    canvas.style.width = '100%';
-    canvas.style.maxWidth = `${viewport.width / dpr}px`;
-    canvas.style.height = 'auto';
-    canvas.style.display = 'block';
-
-    wrapper.appendChild(canvas);
-    containerElement.appendChild(wrapper);
-
-    await page.render({
-      canvasContext: canvas.getContext('2d'),
-      viewport
-    }).promise;
-  }
-}
-
-// =========================================================================
-// 🖥️ مكون العارض بملء الشاشة
+// 🖥️ مكون العارض بملء الشاشة (يعتمد على المتصفح المدمج 100%)
 // =========================================================================
 const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
   const [errorMessage, setErrorMessage] = useState('');
-  const [isParsing, setIsParsing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const pdfContainerRef = useRef(null);
+  const [offlineBlobUrl, setOfflineBlobUrl] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -150,36 +92,37 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
 
   useEffect(() => {
     if (!viewerData) return;
-    let isCancelled = false;
-
-    const renderOffline = async () => {
-      if (!viewerData.isOffline || !viewerData.blob) return;
-
-      setIsParsing(true);
+    
+    const prepareViewer = async () => {
+      setIsLoading(true);
       setErrorMessage('');
-      if (pdfContainerRef.current) pdfContainerRef.current.innerHTML = '';
 
-      try {
+      if (viewerData.isOffline && viewerData.blob) {
+        // فحص سريع للتأكد من أن الملف سليم ولم يفسد
         const isPdf = await inspectBlobIsPdf(viewerData.blob);
-        
         if (!isPdf) {
-          if (!isCancelled) setErrorMessage('هذا الملف ليس بصيغة PDF صالحة. يرجى حذف الملف من حسابك ورفع ملف PDF جديد.');
+          setErrorMessage('هذا الملف تالف أو ليس بصيغة PDF صالحة. يرجى حذفه من حسابك وإعادة تحميله.');
+          setIsLoading(false);
           return;
         }
 
-        if (pdfContainerRef.current) {
-          await renderOfflinePdfFile(viewerData.blob, pdfContainerRef.current);
-        }
-      } catch (err) {
-        console.error('Offline Viewer Error:', err);
-        if (!isCancelled) setErrorMessage('تعذر تحليل وعرض هذا الملف محلياً. قد يكون تالفاً.');
-      } finally {
-        if (!isCancelled) setIsParsing(false);
+        // تحويل الملف المحلي إلى رابط متصفح لعرضه
+        const url = URL.createObjectURL(viewerData.blob);
+        setOfflineBlobUrl(url);
+        setIsLoading(false);
+      } else {
+        setIsLoading(false);
       }
     };
 
-    renderOffline();
-    return () => { isCancelled = true; };
+    prepareViewer();
+
+    // تنظيف الذاكرة عند إغلاق النافذة
+    return () => {
+      if (offlineBlobUrl) {
+        URL.revokeObjectURL(offlineBlobUrl);
+      }
+    };
   }, [viewerData]);
 
   if (!viewerData) return null;
@@ -199,28 +142,30 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
         </button>
       </div>
 
-      <div style={{ flex: 1, width: '100%', height: 'calc(100vh - 52px)', position: 'relative', overflowY: 'auto', backgroundColor: '#121215', WebkitOverflowScrolling: 'touch' }}>
-        {viewerData.isOffline ? (
-          <>
-            {isParsing && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 5 }}>
-                <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255, 255, 255, 0.2)', borderTopColor: 'var(--primary-color)', borderRadius: '50%', animation: 'versaSpin 0.65s linear infinite' }} />
-              </div>
-            )}
-            {errorMessage && !isParsing && (
-              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center', color: '#ef4444', fontSize: '14px', fontWeight: 'bold', lineHeight: '1.7' }}>
-                {errorMessage}
-              </div>
-            )}
-            <div ref={pdfContainerRef} style={{ padding: '15px', maxWidth: '900px', margin: '0 auto', display: (!isParsing && !errorMessage) ? 'block' : 'none' }} />
-          </>
+      <div style={{ flex: 1, width: '100%', height: 'calc(100vh - 52px)', position: 'relative', overflowY: 'hidden', backgroundColor: '#ffffff', WebkitOverflowScrolling: 'touch' }}>
+        {isLoading ? (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#121215', zIndex: 5 }}>
+            <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255, 255, 255, 0.2)', borderTopColor: 'var(--primary-color)', borderRadius: '50%', animation: 'versaSpin 0.65s linear infinite' }} />
+          </div>
+        ) : viewerData.isOffline ? (
+          errorMessage ? (
+            <div style={{ height: '100%', backgroundColor: '#121215', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center', color: '#ef4444', fontSize: '14px', fontWeight: 'bold', lineHeight: '1.7' }}>
+              {errorMessage}
+            </div>
+          ) : (
+            <iframe 
+              src={`${offlineBlobUrl}#toolbar=0&navpanes=0`} 
+              title={viewerData.title} 
+              style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#ffffff', display: 'block' }} 
+            />
+          )
         ) : !isOnline ? (
-          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '25px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <div style={{ height: '100%', backgroundColor: '#121215', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '25px', textAlign: 'center', color: 'var(--text-muted)' }}>
             <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--text-pure)', marginBottom: '8px' }}>لا يوجد اتصال بالإنترنت</div>
             <div style={{ fontSize: '13px', maxWidth: '300px', lineHeight: '1.6' }}>العرض المباشر لوضع الزائر يتطلب اتصالاً بالإنترنت. سجل دخولك وحمّل الملف ليُحفظ داخل حسابك ويعمل دون إنترنت.</div>
           </div>
         ) : (
-          <iframe src={viewerData.onlineUrl} title={viewerData.title} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" />
+          <iframe src={viewerData.onlineUrl} title={viewerData.title} style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#ffffff', display: 'block' }} allow="autoplay" />
         )}
       </div>
     </div>,
@@ -290,7 +235,6 @@ export default function MaterialsTab({
 
     try {
       const fileId = extractDriveFileId(mat.url);
-      // استخدام الـ API الخاص بك الذي قمنا بإنشائه
       const fetchUrl = fileId ? `/api/drive?id=${fileId}&preferPdf=1` : null;
 
       if (!fetchUrl) throw new Error('رابط غير صالح');
@@ -306,7 +250,7 @@ export default function MaterialsTab({
       const isPdf = await inspectBlobIsPdf(blob);
 
       if (!isPdf) {
-        throw new Error('الملف المستلم ليس بصيغة PDF. تأكد من أن الرابط لملف PDF.');
+        throw new Error('تم رفض الملف. يرجى التأكد من رفع ملف بصيغة PDF.');
       }
 
       const validBlob = new Blob([blob], { type: 'application/pdf' });
@@ -514,3 +458,4 @@ export default function MaterialsTab({
     </div>
   );
 }
+

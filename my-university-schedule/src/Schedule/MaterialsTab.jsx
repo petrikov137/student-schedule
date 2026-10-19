@@ -6,8 +6,8 @@ import { database } from '../firebase';
 import localforage from 'localforage';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// إعداد عامل (Worker) الخاص بمكتبة PDF.js لتعمل بشكل صحيح في React/Vite
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// 🌟 الحل الجذري والنهائي: استخدام رابط ثابت للإصدار المستقر 3.11.174 لمنع أي خطأ 404 للأبد 🌟
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 // تهيئة قاعدة البيانات المحلية لحفظ الملفات
 const offlineStore = localforage.createInstance({
@@ -80,9 +80,9 @@ const formatFilesCount = (count) => {
 async function renderOfflinePdfFile(blob, containerElement) {
   const arrayBuffer = await blob.arrayBuffer();
   
-  // إرفاق CMaps لدعم الخطوط العربية المعقدة داخل الـ PDF لمنع تداخل الحروف
-  const cMapUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/cmaps/`;
-  const standardFontDataUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/standard_fonts/`;
+  // 🌟 إرفاق CMaps بروابط ثابتة ومضمونة 100% لدعم الخطوط العربية المعقدة 🌟
+  const cMapUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/`;
+  const standardFontDataUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/`;
 
   const loadingTask = pdfjsLib.getDocument({ 
     data: arrayBuffer,
@@ -290,7 +290,7 @@ export default function MaterialsTab({
 
     try {
       const fileId = extractDriveFileId(mat.url);
-      // استخدام الـ API الخاص بك الذي قمنا بإنشائه (مع طلب التحويل لـ PDF إجبارياً)
+      // استخدام الـ API الخاص بك الذي قمنا بإنشائه
       const fetchUrl = fileId ? `/api/drive?id=${fileId}&preferPdf=1` : null;
 
       if (!fetchUrl) throw new Error('رابط غير صالح');
@@ -514,4 +514,3 @@ export default function MaterialsTab({
     </div>
   );
 }
-

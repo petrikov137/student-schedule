@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom';
 import { ref, set, remove } from 'firebase/database';
 import { database } from '../firebase';
 import localforage from 'localforage';
+import JSZip from 'jszip';
+import mammoth from 'mammoth';
 
 
 
@@ -88,7 +90,7 @@ const inspectBlobContent = async (blob) => {
     const bytes = new Uint8Array(headerBuffer);
 
     // 1. فحص بصمة PDF (%PDF-)
-    if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x44) {
+    if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
       return { valid: true, fileType: 'pdf', mime: 'application/pdf' };
     }
 
@@ -612,34 +614,11 @@ export default function MaterialsTab({
 
     try {
       const fileId = extractDriveFileId(mat.url);
-      const targetUrl = getDirectDownloadUrl(mat.url);
       const preferPdf = isPresentationOrDocHint(mat.name, mat.url) ? '1' : '0';
 
-   
-      // مسارات الجلب بالترتيب مع وسطاء أقوى لتخطي حظر Google Drive:
+      // 🌟 الاعتماد الكلي على الـ API الخاص بمشروعك (api/drive.js)
       const fetchCandidates = [
-        // 1. خادمك (إن وجد)
-        fileId ? `/api/drive?id=${fileId}&preferPdf=${preferPdf}` : null,
-        
-        // 2. بروكسي قوي لتخطي حظر جوجل (لتحويل البوربوينت لـ PDF)
-        (fileId && preferPdf === '1')
-          ? `https://corsproxy.io/?${encodeURIComponent(`https://docs.google.com/presentation/d/${fileId}/export/pdf`)}`
-          : null,
-          
-        // 3. بروكسي قوي للتحميل المباشر للـ PDF (مع تخطي فحص الفيروسات)
-        fileId 
-          ? `https://corsproxy.io/?${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`)}` 
-          : null,
-          
-        // 4. بروكسي احتياطي متقدم
-        fileId
-          ? `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`)}`
-          : null,
-          
-        // 5. بروكسي codetabs كحل أخير
-        fileId
-          ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`)}`
-          : null
+        fileId ? `/api/drive?id=${fileId}&preferPdf=${preferPdf}` : null
       ].filter(Boolean);
 
       let validBlob = null;
@@ -649,10 +628,12 @@ export default function MaterialsTab({
       for (const candidate of fetchCandidates) {
         try {
           const response = await fetch(candidate);
+          
           if (response.status === 415) {
-            specificError = 'صيغة الملف قديمة (.ppt). يرجى رفعه بصيغة PPTX أو PDF';
+            specificError = 'صيغة الملف قديمة (.ppt أو .doc). يرجى رفعه بصيغة PPTX أو PDF ليعمل دون إنترنت.';
             break;
           }
+          
           if (!response.ok) continue;
 
           const blob = await response.blob();
@@ -663,10 +644,10 @@ export default function MaterialsTab({
             detectedType = inspection.fileType;
             break;
           } else if (inspection.reason === 'LEGACY_BINARY_OFFICE') {
-            specificError = 'صيغة الملف قديمة (.ppt). يرجى رفعه بصيغة PPTX أو PDF';
+            specificError = 'صيغة الملف قديمة. يرجى رفعه بصيغة PPTX أو PDF';
           }
         } catch (err) {
-          // الانتقال للمسار البديل
+          console.error("Fetch error:", err);
         }
       }
 

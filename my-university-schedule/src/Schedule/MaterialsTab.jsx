@@ -1,4 +1,3 @@
-//must be the final
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -50,7 +49,7 @@ const getOnlineEmbedUrl = (url) => {
   return url;
 };
 
-// فحص للتأكد من أن الملف هو PDF حقيقي وليس صفحة خطأ
+// فحص للتأكد من أن الملف هو PDF حقيقي
 const inspectBlobIsPdf = async (blob) => {
   if (!blob || blob.size < 64) return false;
   try {
@@ -71,13 +70,18 @@ const formatFilesCount = (count) => {
 };
 
 // =========================================================================
-// 🖥️ مكون العارض بملء الشاشة (يعتمد على المتصفح المدمج 100%)
+// 🖥️ مكون العارض بملء الشاشة (ذكي: يتعرف على الهاتف والحاسوب)
 // =========================================================================
 const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [offlineBlobUrl, setOfflineBlobUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  const mobileContainerRef = useRef(null);
+
+  // التعرف على الهاتف الخلوي
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -92,13 +96,13 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
 
   useEffect(() => {
     if (!viewerData) return;
+    let isCancelled = false;
     
     const prepareViewer = async () => {
       setIsLoading(true);
       setErrorMessage('');
 
       if (viewerData.isOffline && viewerData.blob) {
-        // فحص سريع للتأكد من أن الملف سليم ولم يفسد
         const isPdf = await inspectBlobIsPdf(viewerData.blob);
         if (!isPdf) {
           setErrorMessage('هذا الملف تالف أو ليس بصيغة PDF صالحة. يرجى حذفه من حسابك وإعادة تحميله.');
@@ -106,10 +110,74 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
           return;
         }
 
-        // تحويل الملف المحلي إلى رابط متصفح لعرضه
-        const url = URL.createObjectURL(viewerData.blob);
-        setOfflineBlobUrl(url);
-        setIsLoading(false);
+        if (isMobile) {
+          // 📱 نظام عرض مخصص للهواتف (بدون npm, يجلب المكتبة مباشرة من السيرفر)
+          try {
+            // جلب مكتبة PDF.js من الـ CDN إذا لم تكن موجودة
+            if (!window.pdfjsLib) {
+              await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.body.appendChild(script);
+              });
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            }
+
+            const arrayBuffer = await viewerData.blob.arrayBuffer();
+            const loadingTask = window.pdfjsLib.getDocument({
+              data: arrayBuffer,
+              cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/', // لمنع تشوه العربي
+              cMapPacked: true,
+            });
+
+            const pdf = await loadingTask.promise;
+            
+            if (isCancelled) return;
+            
+            const container = mobileContainerRef.current;
+            if (container) container.innerHTML = '';
+
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            // رسم الصفحات
+            for (let i = 1; i <= pdf.numPages; i++) {
+              if (isCancelled) break;
+              const page = await pdf.getPage(i);
+              const containerWidth = container ? container.clientWidth : window.innerWidth;
+              const unscaledViewport = page.getViewport({ scale: 1 });
+              const scale = (containerWidth / unscaledViewport.width) * dpr;
+              const viewport = page.getViewport({ scale });
+
+              const canvas = document.createElement('canvas');
+              canvas.width = viewport.width;
+              canvas.height = viewport.height;
+              canvas.style.width = '100%';
+              canvas.style.height = 'auto';
+              canvas.style.marginBottom = '12px';
+              canvas.style.borderRadius = '8px';
+              canvas.style.display = 'block';
+              canvas.style.boxShadow = '0 4px 10px rgba(0,0,0,0.2)';
+
+              if (container) container.appendChild(canvas);
+
+              await page.render({
+                canvasContext: canvas.getContext('2d'),
+                viewport: viewport
+              }).promise;
+            }
+          } catch (err) {
+            console.error("Mobile PDF Render Error:", err);
+            if (!isCancelled) setErrorMessage('حدث خطأ أثناء عرض الملف. حاول مجدداً.');
+          } finally {
+            if (!isCancelled) setIsLoading(false);
+          }
+        } else {
+          // 💻 نظام العرض للحاسوب (سريع و Native)
+          const url = URL.createObjectURL(viewerData.blob);
+          setOfflineBlobUrl(url);
+          setIsLoading(false);
+        }
       } else {
         setIsLoading(false);
       }
@@ -117,13 +185,11 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
 
     prepareViewer();
 
-    // تنظيف الذاكرة عند إغلاق النافذة
     return () => {
-      if (offlineBlobUrl) {
-        URL.revokeObjectURL(offlineBlobUrl);
-      }
+      isCancelled = true;
+      if (offlineBlobUrl) URL.revokeObjectURL(offlineBlobUrl);
     };
-  }, [viewerData]);
+  }, [viewerData, isMobile]);
 
   if (!viewerData) return null;
 
@@ -142,7 +208,7 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
         </button>
       </div>
 
-      <div style={{ flex: 1, width: '100%', height: 'calc(100vh - 52px)', position: 'relative', overflowY: 'hidden', backgroundColor: '#ffffff', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ flex: 1, width: '100%', height: 'calc(100vh - 52px)', position: 'relative', overflowY: 'auto', backgroundColor: isMobile ? '#121215' : '#ffffff', WebkitOverflowScrolling: 'touch' }}>
         {isLoading ? (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#121215', zIndex: 5 }}>
             <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255, 255, 255, 0.2)', borderTopColor: 'var(--primary-color)', borderRadius: '50%', animation: 'versaSpin 0.65s linear infinite' }} />
@@ -152,6 +218,8 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
             <div style={{ height: '100%', backgroundColor: '#121215', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center', color: '#ef4444', fontSize: '14px', fontWeight: 'bold', lineHeight: '1.7' }}>
               {errorMessage}
             </div>
+          ) : isMobile ? (
+            <div ref={mobileContainerRef} style={{ padding: '12px', maxWidth: '100%', boxSizing: 'border-box' }} />
           ) : (
             <iframe 
               src={`${offlineBlobUrl}#toolbar=0&navpanes=0`} 
@@ -224,7 +292,6 @@ export default function MaterialsTab({
     setSelectedSubject(selectedSubject === subjName ? null : subjName);
   };
 
-  // --- ⚡ تحميل الـ PDF وحفظه ⚡ ---
   const handleDownloadToAccount = async (mat, e) => {
     e.stopPropagation();
     if (!user) return;

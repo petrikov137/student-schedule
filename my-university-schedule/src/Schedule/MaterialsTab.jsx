@@ -1,16 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ref, set, remove } from 'firebase/database';
 import { database } from '../firebase';
 import localforage from 'localforage';
 
-// 🌟 استيراد محركات القراءة محلياً داخل حزمة Vite لضمان العمل 100% دون إنترنت 🌟
-import * as pdfjsLib from 'pdfjs-dist/build/pdf';
-import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
-import JSZip from 'jszip';
-import mammoth from 'mammoth';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 // تهيئة قاعدة البيانات المحلية داخل Versa لحفظ الملفات الضخمة بدون إنترنت
 const offlineStore = localforage.createInstance({
@@ -93,7 +88,7 @@ const inspectBlobContent = async (blob) => {
     const bytes = new Uint8Array(headerBuffer);
 
     // 1. فحص بصمة PDF (%PDF-)
-    if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
+    if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x44) {
       return { valid: true, fileType: 'pdf', mime: 'application/pdf' };
     }
 
@@ -217,11 +212,11 @@ async function renderOfflineOfficeFile(blob, fileType) {
 
         if (shapeLines.length > 0) {
           if (isTitle && !titleHtml) {
-            titleHtml = `<h3 style="margin:0 0 14px 0;color:#38bdf8;font-size:19px;font-weight:bold;line-height:1.45;direction:auto;">${shapeLines.join('<br/>')}</h3>`;
+            titleHtml = `<h3 style="margin:0 0 18px 0;color:#111827;font-size:24px;font-weight:bold;line-height:1.45;direction:auto;text-align:center;">${shapeLines.join('<br/>')}</h3>`;
           } else {
             bodyBlocksHtml += `
-              <div style="margin-bottom:12px;direction:auto;">
-                ${shapeLines.map(line => `<div style="margin-bottom:6px;font-size:15px;line-height:1.7;color:#f4f4f5;">• ${line}</div>`).join('')}
+              <div style="margin-bottom:12px;direction:auto;text-align:center;">
+                ${shapeLines.map(line => `<div style="margin-bottom:8px;font-size:17px;line-height:1.6;color:#374151;">• ${line}</div>`).join('')}
               </div>
             `;
           }
@@ -242,14 +237,14 @@ async function renderOfflineOfficeFile(blob, fileType) {
             let cellText = '';
             for (let t = 0; t < tNodes.length; t++) cellText += tNodes[t].textContent + ' ';
             const cellStyle = r === 0
-              ? 'background:rgba(56,189,248,0.15);color:#38bdf8;font-weight:bold;'
-              : 'background:rgba(255,255,255,0.03);color:#e4e4e7;';
-            cellsHtml += `<td style="border:1px solid rgba(255,255,255,0.12);padding:8px 10px;font-size:13px;${cellStyle}">${escapeHtml(cellText.trim())}</td>`;
+              ? 'background:#f3f4f6;color:#111827;font-weight:bold;'
+              : 'background:#ffffff;color:#374151;';
+            cellsHtml += `<td style="border:1px solid #d1d5db;padding:10px;font-size:14px;${cellStyle}">${escapeHtml(cellText.trim())}</td>`;
           }
           rowsHtml += `<tr>${cellsHtml}</tr>`;
         }
         if (rowsHtml) {
-          tablesHtml += `<div style="overflow-x:auto;margin:12px 0;"><table style="width:100%;border-collapse:collapse;direction:auto;">${rowsHtml}</table></div>`;
+          tablesHtml += `<div style="overflow-x:auto;margin:16px 0;display:flex;justify-content:center;"><table style="width:90%;border-collapse:collapse;direction:auto;text-align:center;">${rowsHtml}</table></div>`;
         }
       }
 
@@ -268,8 +263,8 @@ async function renderOfflineOfficeFile(blob, fileType) {
             const ext = mediaPath.split('.').pop().toLowerCase();
             const mime = ext === 'jpg' ? 'image/jpeg' : ext === 'svg' ? 'image/svg+xml' : `image/${ext}`;
             imagesHtml += `
-              <div style="margin-top:14px;text-align:center;">
-                <img src="data:${mime};base64,${base64}" style="max-width:100%;max-height:420px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);object-fit:contain;background:#fff;" />
+              <div style="margin-top:16px;text-align:center;display:flex;justify-content:center;">
+                <img src="data:${mime};base64,${base64}" style="max-width:90%;max-height:450px;border-radius:6px;border:1px solid #e5e7eb;object-fit:contain;background:#fff;" />
               </div>
             `;
           }
@@ -278,18 +273,19 @@ async function renderOfflineOfficeFile(blob, fileType) {
 
       const hasContent = titleHtml || bodyBlocksHtml || tablesHtml || imagesHtml;
 
+      // 🌟 التعديل الجذري هنا: جعل مظهر البوربوينت يشبه السلايدات الحقيقية (خلفية بيضاء ونسبة 16:9) 🌟
       slidesHtml += `
-        <div style="background:linear-gradient(145deg, #1c1c22, #141418);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:24px 20px;box-shadow:0 10px 25px rgba(0,0,0,0.35);position:relative;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.07);">
-            <span style="color:var(--primary-color);font-size:12px;font-weight:bold;background:rgba(0,148,247,0.12);padding:4px 10px;border-radius:8px;">
-              شريحة ${i + 1} / ${slideFiles.length}
-            </span>
+        <div style="background:#ffffff;color:#000000;border:1px solid #e5e7eb;border-radius:12px;padding:40px 30px;box-shadow:0 12px 30px rgba(0,0,0,0.15);position:relative;aspect-ratio:16/9;display:flex;flex-direction:column;justify-content:center;overflow:hidden;">
+          <div style="position:absolute;top:15px;right:20px;color:#9ca3af;font-size:13px;font-weight:bold;font-family:sans-serif;">
+            شريحة ${i + 1} / ${slideFiles.length}
           </div>
-          ${titleHtml}
-          ${bodyBlocksHtml}
-          ${tablesHtml}
-          ${imagesHtml}
-          ${!hasContent ? '<div style="color:#71717a;font-size:13px;text-align:center;padding:20px 0;">(شريحة رسومية أو فارغة)</div>' : ''}
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:center;overflow-y:auto;padding-right:5px;">
+            ${titleHtml}
+            ${bodyBlocksHtml}
+            ${tablesHtml}
+            ${imagesHtml}
+            ${!hasContent ? '<div style="color:#9ca3af;font-size:15px;text-align:center;padding:20px 0;">(شريحة رسومية أو فارغة)</div>' : ''}
+          </div>
         </div>
       `;
     }
@@ -304,7 +300,19 @@ async function renderOfflineOfficeFile(blob, fileType) {
 // محرك عرض ملفات PDF (أو ملفات البوربوينت المحولة إلى PDF) كشرائح وصفحات عالية الدقة دون إنترنت
 async function renderOfflinePdfFile(blob, containerElement) {
   const arrayBuffer = await blob.arrayBuffer();
-  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+  
+  // 🌟 الحل الجذري لمشكلة تداخل النصوص (تلف الملفات): إرفاق ملفات CMaps لدعم الخطوط العربية والمعقدة 🌟
+  const pdfVersion = (typeof pdfjsLib !== 'undefined' && pdfjsLib.version) ? pdfjsLib.version : '3.11.174';
+  const cMapUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfVersion}/cmaps/`;
+  const standardFontDataUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfVersion}/standard_fonts/`;
+
+  const loadingTask = pdfjsLib.getDocument({ 
+    data: arrayBuffer,
+    cMapUrl: cMapUrl,
+    cMapPacked: true,
+    standardFontDataUrl: standardFontDataUrl,
+  });
+  
   const pdf = await loadingTask.promise;
 
   containerElement.innerHTML = '';
@@ -317,16 +325,21 @@ async function renderOfflinePdfFile(blob, containerElement) {
     const viewport = page.getViewport({ scale: baseScale * dpr });
 
     const wrapper = document.createElement('div');
-    wrapper.style.marginBottom = '14px';
+    wrapper.style.marginBottom = '20px';
     wrapper.style.borderRadius = '10px';
     wrapper.style.overflow = 'hidden';
-    wrapper.style.boxShadow = '0 6px 18px rgba(0,0,0,0.35)';
+    wrapper.style.boxShadow = '0 8px 25px rgba(0,0,0,0.35)';
     wrapper.style.backgroundColor = '#ffffff';
+    wrapper.style.display = 'flex';
+    wrapper.style.justifyContent = 'center';
 
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width;
     canvas.height = viewport.height;
+    
+    // 🌟 ضمان عرض Canvas بدقة وعدم تشوه الأبعاد 🌟
     canvas.style.width = '100%';
+    canvas.style.maxWidth = `${viewport.width / dpr}px`;
     canvas.style.height = 'auto';
     canvas.style.display = 'block';
 
@@ -1211,4 +1224,4 @@ export default function MaterialsTab({
     </div>
   );
 }
-//
+

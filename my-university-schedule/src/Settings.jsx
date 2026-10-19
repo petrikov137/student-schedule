@@ -313,7 +313,7 @@ export default function Settings({
       closeModal();
     } catch (error) {
       if (error.code === 'auth/requires-recent-login') {
-        showToast('🔒 يرجى تسجيل الخروج والدخول مجدداً لتغيير كلمة المرور', 'error');
+        showToast(' يرجى تسجيل الخروج والدخول مجدداً لتغيير كلمة المرور', 'error');
       } else {
         showToast('❌ فشل تغيير كلمة المرور', 'error');
       }
@@ -331,7 +331,7 @@ export default function Settings({
       // سيقوم المتنصت (onAuthStateChanged) في StudentView بتحويله لصفحة الدخول
     } catch (error) {
       if (error.code === 'auth/requires-recent-login') {
-        showToast('🔒 لأسباب أمنية، يرجى تسجيل الخروج والدخول مجدداً قبل حذف الحساب', 'error');
+        showToast(' لأسباب أمنية، يرجى تسجيل الخروج والدخول مجدداً قبل حذف الحساب', 'error');
       } else {
         showToast('❌ حدث خطأ أثناء حذف الحساب', 'error');
       }

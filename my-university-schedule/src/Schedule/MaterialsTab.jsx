@@ -24,6 +24,16 @@ const TrashIcon = () => (
   </svg>
 );
 
+const PdfIcon = () => (
+  <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+    <polyline points="14 2 14 8 20 8"></polyline>
+    <line x1="16" y1="13" x2="8" y2="13"></line>
+    <line x1="16" y1="17" x2="8" y2="17"></line>
+    <polyline points="10 9 9 9 8 9"></polyline>
+  </svg>
+);
+
 // --- 🧠 دوال مساعدة ---
 const extractDriveFileId = (url) => {
   if (!url) return null;
@@ -70,13 +80,16 @@ const formatFilesCount = (count) => {
 };
 
 // =========================================================================
-// 🖥️ مكون العارض بملء الشاشة (للحواسيب فقط)
+// 🖥️ مكون العارض بملء الشاشة (شاشة الهاتف الأنيقة + عرض الحاسوب)
 // =========================================================================
 const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [offlineBlobUrl, setOfflineBlobUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // كشف الهاتف
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -146,7 +159,28 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
             <div style={{ height: '100%', backgroundColor: '#121215', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center', color: '#ef4444', fontSize: '14px', fontWeight: 'bold', lineHeight: '1.7' }}>
               {errorMessage}
             </div>
+          ) : isMobile ? (
+            // 📱 الواجهة الأنيقة المخصصة للهواتف
+            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px', textAlign: 'center', backgroundColor: '#121215' }}>
+              <div style={{ marginBottom: '20px', padding: '20px', backgroundColor: 'rgba(239, 68, 68, 0.05)', borderRadius: '50%', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
+                <PdfIcon />
+              </div>
+              <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '10px' }}>{viewerData.title}</h3>
+              <a 
+                href={offlineBlobUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{
+                  backgroundColor: 'var(--primary-color)', color: '#fff', padding: '14px 30px',
+                  borderRadius: '14px', textDecoration: 'none', fontWeight: 'bold', fontSize: '15px',
+                  boxShadow: '0 4px 15px rgba(0, 148, 247, 0.3)', display: 'inline-block', WebkitTapHighlightColor: 'transparent'
+                }}
+              >
+                فتح الملف
+              </a>
+            </div>
           ) : (
+            // 💻 العرض المباشر للحاسوب
             <iframe 
               src={`${offlineBlobUrl}#toolbar=0&navpanes=0`} 
               title={viewerData.title} 
@@ -218,7 +252,6 @@ export default function MaterialsTab({
     setSelectedSubject(selectedSubject === subjName ? null : subjName);
   };
 
-  // --- ⚡ تحميل الـ PDF وحفظه ⚡ ---
   const handleDownloadToAccount = async (mat, e) => {
     e.stopPropagation();
     if (!user) return;
@@ -267,43 +300,18 @@ export default function MaterialsTab({
     }
   };
 
-  // --- 🖥️ دالة فتح وعرض الملف (مع كشف الهاتف لفتحه مباشرة) ---
   const handleOpenFullscreenViewer = async (mat, e) => {
     e.stopPropagation();
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-
     if (user && downloadedMap[mat.id]) {
       try {
         const record = await offlineStore.getItem(`user_${user.uid}_mat_${mat.id}`);
         if (record && record.blob) {
-          if (isMobile) {
-            // 📱 فتح مباشر في الهاتف باستخدام قارئ الـ PDF المدمج بالنظام
-            const url = URL.createObjectURL(record.blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${mat.name}.pdf`;
-            a.target = '_blank';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-            return;
-          } else {
-            // 💻 فتح النافذة الداخلية في الحاسوب
-            setViewerData({ title: mat.name, isOffline: true, blob: record.blob, fileType: 'pdf' });
-            return;
-          }
+          setViewerData({ title: mat.name, isOffline: true, blob: record.blob, fileType: 'pdf' });
+          return;
         }
       } catch (err) { console.error('Error reading offline file:', err); }
     }
-
-    // وضع الزائر (أونلاين)
-    const onlineUrl = getOnlineEmbedUrl(mat.url);
-    if (isMobile) {
-      window.open(onlineUrl, '_blank');
-    } else {
-      setViewerData({ title: mat.name, isOffline: false, onlineUrl });
-    }
+    setViewerData({ title: mat.name, isOffline: false, onlineUrl: getOnlineEmbedUrl(mat.url) });
   };
 
   const handleCloseViewer = () => setViewerData(null);

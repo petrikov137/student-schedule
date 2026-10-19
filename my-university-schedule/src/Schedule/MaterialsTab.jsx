@@ -24,6 +24,16 @@ const TrashIcon = () => (
   </svg>
 );
 
+const PdfIcon = () => (
+  <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+    <polyline points="14 2 14 8 20 8"></polyline>
+    <line x1="16" y1="13" x2="8" y2="13"></line>
+    <line x1="16" y1="17" x2="8" y2="17"></line>
+    <polyline points="10 9 9 9 8 9"></polyline>
+  </svg>
+);
+
 // --- 🧠 دوال مساعدة ---
 const extractDriveFileId = (url) => {
   if (!url) return null;
@@ -55,7 +65,7 @@ const inspectBlobIsPdf = async (blob) => {
   try {
     const headerBuffer = await blob.slice(0, 4).arrayBuffer();
     const bytes = new Uint8Array(headerBuffer);
-    return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46; // يمثل %PDF
+    return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46; 
   } catch (err) {
     return false;
   }
@@ -70,17 +80,15 @@ const formatFilesCount = (count) => {
 };
 
 // =========================================================================
-// 🖥️ مكون العارض بملء الشاشة (ذكي: يتعرف على الهاتف والحاسوب)
+// 🖥️ مكون العارض بملء الشاشة (شاشة الهاتف الأنيقة + عرض الحاسوب)
 // =========================================================================
 const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [offlineBlobUrl, setOfflineBlobUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  
-  const mobileContainerRef = useRef(null);
 
-  // التعرف على الهاتف الخلوي
+  // كشف الهاتف
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 
   useEffect(() => {
@@ -96,7 +104,6 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
 
   useEffect(() => {
     if (!viewerData) return;
-    let isCancelled = false;
     
     const prepareViewer = async () => {
       setIsLoading(true);
@@ -110,74 +117,9 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
           return;
         }
 
-        if (isMobile) {
-          // 📱 نظام عرض مخصص للهواتف (بدون npm, يجلب المكتبة مباشرة من السيرفر)
-          try {
-            // جلب مكتبة PDF.js من الـ CDN إذا لم تكن موجودة
-            if (!window.pdfjsLib) {
-              await new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-                script.onload = resolve;
-                script.onerror = reject;
-                document.body.appendChild(script);
-              });
-              window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-            }
-
-            const arrayBuffer = await viewerData.blob.arrayBuffer();
-            const loadingTask = window.pdfjsLib.getDocument({
-              data: arrayBuffer,
-              cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/', // لمنع تشوه العربي
-              cMapPacked: true,
-            });
-
-            const pdf = await loadingTask.promise;
-            
-            if (isCancelled) return;
-            
-            const container = mobileContainerRef.current;
-            if (container) container.innerHTML = '';
-
-            const dpr = Math.min(window.devicePixelRatio || 1, 2);
-            // رسم الصفحات
-            for (let i = 1; i <= pdf.numPages; i++) {
-              if (isCancelled) break;
-              const page = await pdf.getPage(i);
-              const containerWidth = container ? container.clientWidth : window.innerWidth;
-              const unscaledViewport = page.getViewport({ scale: 1 });
-              const scale = (containerWidth / unscaledViewport.width) * dpr;
-              const viewport = page.getViewport({ scale });
-
-              const canvas = document.createElement('canvas');
-              canvas.width = viewport.width;
-              canvas.height = viewport.height;
-              canvas.style.width = '100%';
-              canvas.style.height = 'auto';
-              canvas.style.marginBottom = '12px';
-              canvas.style.borderRadius = '8px';
-              canvas.style.display = 'block';
-              canvas.style.boxShadow = '0 4px 10px rgba(0,0,0,0.2)';
-
-              if (container) container.appendChild(canvas);
-
-              await page.render({
-                canvasContext: canvas.getContext('2d'),
-                viewport: viewport
-              }).promise;
-            }
-          } catch (err) {
-            console.error("Mobile PDF Render Error:", err);
-            if (!isCancelled) setErrorMessage('حدث خطأ أثناء عرض الملف. حاول مجدداً.');
-          } finally {
-            if (!isCancelled) setIsLoading(false);
-          }
-        } else {
-          // 💻 نظام العرض للحاسوب (سريع و Native)
-          const url = URL.createObjectURL(viewerData.blob);
-          setOfflineBlobUrl(url);
-          setIsLoading(false);
-        }
+        const url = URL.createObjectURL(viewerData.blob);
+        setOfflineBlobUrl(url);
+        setIsLoading(false);
       } else {
         setIsLoading(false);
       }
@@ -186,10 +128,9 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
     prepareViewer();
 
     return () => {
-      isCancelled = true;
       if (offlineBlobUrl) URL.revokeObjectURL(offlineBlobUrl);
     };
-  }, [viewerData, isMobile]);
+  }, [viewerData]);
 
   if (!viewerData) return null;
 
@@ -208,7 +149,7 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
         </button>
       </div>
 
-      <div style={{ flex: 1, width: '100%', height: 'calc(100vh - 52px)', position: 'relative', overflowY: 'auto', backgroundColor: isMobile ? '#121215' : '#ffffff', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ flex: 1, width: '100%', height: 'calc(100vh - 52px)', position: 'relative', overflowY: 'hidden', backgroundColor: '#121215', WebkitOverflowScrolling: 'touch' }}>
         {isLoading ? (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#121215', zIndex: 5 }}>
             <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255, 255, 255, 0.2)', borderTopColor: 'var(--primary-color)', borderRadius: '50%', animation: 'versaSpin 0.65s linear infinite' }} />
@@ -219,8 +160,30 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
               {errorMessage}
             </div>
           ) : isMobile ? (
-            <div ref={mobileContainerRef} style={{ padding: '12px', maxWidth: '100%', boxSizing: 'border-box' }} />
+            // 📱 الواجهة الأنيقة المخصصة للهواتف
+            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px', textAlign: 'center', backgroundColor: '#121215' }}>
+              <div style={{ marginBottom: '20px', padding: '20px', backgroundColor: 'rgba(239, 68, 68, 0.05)', borderRadius: '50%', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
+                <PdfIcon />
+              </div>
+              <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '10px' }}>{viewerData.title}</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', lineHeight: '1.6', marginBottom: '30px', maxWidth: '300px' }}>
+                نظام الهواتف لا يدعم العرض الداخلي للملفات. اضغط على الزر أدناه لفتح الملف باستخدام قارئ الـ PDF في هاتفك.
+              </p>
+              <a 
+                href={offlineBlobUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{
+                  backgroundColor: 'var(--primary-color)', color: '#fff', padding: '14px 30px',
+                  borderRadius: '14px', textDecoration: 'none', fontWeight: 'bold', fontSize: '15px',
+                  boxShadow: '0 4px 15px rgba(0, 148, 247, 0.3)', display: 'inline-block', WebkitTapHighlightColor: 'transparent'
+                }}
+              >
+                فتح الملف 📄
+              </a>
+            </div>
           ) : (
+            // 💻 العرض المباشر للحاسوب
             <iframe 
               src={`${offlineBlobUrl}#toolbar=0&navpanes=0`} 
               title={viewerData.title} 

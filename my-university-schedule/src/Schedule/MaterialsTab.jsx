@@ -615,21 +615,30 @@ export default function MaterialsTab({
       const targetUrl = getDirectDownloadUrl(mat.url);
       const preferPdf = isPresentationOrDocHint(mat.name, mat.url) ? '1' : '0';
 
-      // مسارات الجلب بالترتيب:
-      // 1. خادم Vercel المحلي مع تفضيل التحويل إلى PDF لعروض البوربوينت لضمان تطابق الشرائح 100%
-      // 2. مسار التصدير إلى PDF عبر البروكسي (لبيئة التطوير Localhost)
-      // 3. مسار التحميل المباشر لملفات PDF و PPTX عبر البروكسي
+   
+      // مسارات الجلب بالترتيب مع وسطاء أقوى لتخطي حظر Google Drive:
       const fetchCandidates = [
+        // 1. خادمك (إن وجد)
         fileId ? `/api/drive?id=${fileId}&preferPdf=${preferPdf}` : null,
+        
+        // 2. بروكسي قوي لتخطي حظر جوجل (لتحويل البوربوينت لـ PDF)
         (fileId && preferPdf === '1')
-          ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://docs.google.com/presentation/d/${fileId}/export/pdf`)}`
+          ? `https://corsproxy.io/?${encodeURIComponent(`https://docs.google.com/presentation/d/${fileId}/export/pdf`)}`
           : null,
-        fileId
-          ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://docs.google.com/document/d/${fileId}/export?format=pdf`)}`
+          
+        // 3. بروكسي قوي للتحميل المباشر للـ PDF (مع تخطي فحص الفيروسات)
+        fileId 
+          ? `https://corsproxy.io/?${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`)}` 
           : null,
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+          
+        // 4. بروكسي احتياطي متقدم
         fileId
-          ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://docs.google.com/presentation/d/${fileId}/export/pdf`)}`
+          ? `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`)}`
+          : null,
+          
+        // 5. بروكسي codetabs كحل أخير
+        fileId
+          ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`)}`
           : null
       ].filter(Boolean);
 

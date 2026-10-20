@@ -1,30 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { getToken, onMessage } from 'firebase/messaging';
 import { messaging, database } from './firebase';
 import { ref, set } from 'firebase/database';
-
-// 🌟 أيقونة الثيمات (لوحة ألوان - Palette) 🌟
-
-// const ThemeIcon = () => (
-//   <svg
-//     width="18"
-//     height="18"
-//     viewBox="0 0 24 24"
-//     fill="none"
-//     stroke="currentColor"
-//     strokeWidth="1.8"
-//     strokeLinecap="round"
-//     strokeLinejoin="round"
-//   >
-//     <path d="M12 3a9 9 0 0 0 0 18h1.5a2.5 2.5 0 0 0 1.7-4.3 1.5 1.5 0 0 1 1-2.7H19a2 2 0 0 0 2-2A9 9 0 0 0 12 3Z" />
-//     <circle cx="7.5" cy="10" r="1" fill="currentColor" stroke="none" />
-//     <circle cx="10" cy="6.5" r="1" fill="currentColor" stroke="none" />
-//     <circle cx="15" cy="7" r="1" fill="currentColor" stroke="none" />
-//     <circle cx="17" cy="11" r="1" fill="currentColor" stroke="none" />
-//   </svg>
-// );
-
 
 const ThemeIcon = () => (
   <svg
@@ -45,7 +24,6 @@ const ThemeIcon = () => (
     <path d="M3 19H7" />
   </svg>
 );
-
 
 const ProfileIcon = () => (
   <svg width="18" height="18" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
@@ -207,7 +185,6 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
     }
   };
 
-  // 🌟 نظام تبديل الثيم بتأثير عكسي خالي من الاهتزاز والوميض 🌟
   const toggleMode = (e) => {
     const newIsNight = !isNightMode;
     const themeMap = {
@@ -215,6 +192,8 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
       'ocean': 'ocean-light', 'ocean-light': 'ocean',
       'twilight': 'twilight-light', 'twilight-light': 'twilight',
       'hearts-dark': 'hearts', 'hearts': 'hearts-dark',
+      'sun': 'sun-light', 'sun-light': 'sun',
+      'mono': 'mono-light', 'mono-light': 'mono',
       'dark': 'light', 'light': 'dark'
     };
     const nextTheme = themeMap[currentTheme] || (newIsNight ? 'dark' : 'light');
@@ -226,8 +205,16 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
       return;
     }
 
-    const x = e?.clientX ?? window.innerWidth / 2;
-    const y = e?.clientY ?? 20;
+    // 🌟 الحل المضمون: أخذ مركز الزر بالضبط بدلاً من إحداثيات اللمس العشوائية 🌟
+    let x = window.innerWidth / 2;
+    let y = 20;
+
+    if (e && e.currentTarget) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      x = rect.left + rect.width / 2;
+      y = rect.top + rect.height / 2;
+    }
+
     const endRadius = Math.hypot(
       Math.max(x, window.innerWidth - x),
       Math.max(y, window.innerHeight - y)
@@ -237,9 +224,7 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
     document.documentElement.classList.add(isGoingToDark ? 'dark-transition' : 'light-transition');
 
     const transition = document.startViewTransition(() => {
-      // 🌟 الحل الجذري: إجبار الـ DOM على تغيير ألوانه فوراً قبل أخذ المتصفح للقطة الشاشة
       document.documentElement.setAttribute('data-theme', nextTheme);
-      
       flushSync(() => {
         setIsNightMode(newIsNight);
         onThemeSelect(nextTheme, e);
@@ -284,7 +269,6 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
           }
           .swinging { animation: swing-bell 0.8s ease-in-out; transform-origin: top center; }
           
-          /* 🌟 إلغاء تأثيرات المتصفح العشوائية لمنع الاهتزاز والوميض 🌟 */
           ::view-transition-group(root) {
             animation: none !important;
           }
@@ -296,18 +280,15 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
             animation: none !important;
             mix-blend-mode: normal !important;
             display: block !important;
-            opacity: 1 !important; /* منع التلاشي الافتراضي */
+            opacity: 1 !important; 
           }
           
-          /* الافتراضي للتبديل */
           ::view-transition-old(root) { z-index: 1; }
           ::view-transition-new(root) { z-index: 2; }
           
-          /* عند التحويل للداكن: الفاتح (القديم) يكون في الأعلى وينكمش ليكشف الداكن تحته */
           .dark-transition::view-transition-old(root) { z-index: 2; }
           .dark-transition::view-transition-new(root) { z-index: 1; }
           
-          /* عند التحويل للفاتح: الفاتح (الجديد) يكون في الأعلى ويتوسع ليغطي الداكن تحته */
           .light-transition::view-transition-old(root) { z-index: 1; }
           .light-transition::view-transition-new(root) { z-index: 2; }
         `}
@@ -384,3 +365,4 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
     </>
   );
 }
+

@@ -11,7 +11,6 @@ import localforage from 'localforage';
 import { currentAvailableSubjects } from './ScheduleData/CurrentSubjects';
 import { COURSE_SETTINGS, courseSubjectsList } from './ScheduleData/CourseConfig';
 
-// --- استيراد الملفات الجديدة التي قمنا بفصلها ---
 import DayCard from './DayCard';
 import MaterialsTab from './MaterialsTab';
 import AssignmentsTab from './AssignmentsTab';
@@ -22,17 +21,14 @@ function StudentView() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   
-  // 🌟 حالات الصلاحيات والكروبات 🌟
   const [userRole, setUserRole] = useState(null); 
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [activeGroup, setActiveGroup] = useState(localStorage.getItem('app-active-group') || 'A');
 
-  // 🌟 حفظ الكروب المختار في المتصفح 🌟
   useEffect(() => {
     localStorage.setItem('app-active-group', activeGroup);
   }, [activeGroup]);
 
-  // توليد الأسابيع تلقائياً بناءً على إعدادات الكورس
   const weeks = Array.from({ length: COURSE_SETTINGS.totalWeeks }, (_, i) => {
     const weekNames = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع", "العاشر", "الحادي عشر", "الثاني عشر", "الثالث عشر", "الرابع عشر", "الخامس عشر"];
     return `الأسبوع ${weekNames[i] || (i + 1)}`;
@@ -73,12 +69,15 @@ function StudentView() {
   const isEventLongPress = useRef(false);
   const [studentToast, setStudentToast] = useState({ show: false, message: '', type: '' });
 
+  // 🌟 ترتيب الثيمات الجديد مع إضافة شمس وأحادي (أسود وأبيض) 🌟
   const themeCards = [
     { id: 'ocean', name: 'محيـط', color: '#0094f7' },
     { id: 'twilight', name: 'غسق', color: '#9333ea' },
     { id: 'hearts', name: 'زهـري', color: '#f43f5e' },
     { id: 'coffee', name: 'قهـوة', color: '#d28c47' },
-    { id: 'glass', name: 'زجـاج', color: '#a8b2c1',  },
+    { id: 'mono', name: 'أحادي', color: '#a3a3a3' },
+    { id: 'mono-light', name: 'أحادي فاتح', color: '#d4d4d4' },
+    { id: 'glass', name: 'زجـاج', color: '#a8b2c1' },
     { id: 'matrix', name: 'ماتريكس', color: '#00ff41' },
     { id: 'fox', name: 'ثعلب', color: '#ff8c00' },
   ];
@@ -115,7 +114,6 @@ function StudentView() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [activeAttendanceMenu]);
 
-  // 🌟 جلب الصلاحيات والحضور 🌟
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -129,11 +127,10 @@ function StudentView() {
           }
         });
 
-        // جلب صلاحية الأدمن
         const roleRef = ref(database, `admins/${currentUser.uid}/role`);
         onValue(roleRef, (snapshot) => {
           if (snapshot.exists()) {
-            setUserRole(snapshot.val()); // 'super_admin' أو 'admin_a'
+            setUserRole(snapshot.val()); 
           } else {
             setUserRole('student');
             setIsAdminMode(false);
@@ -192,9 +189,13 @@ function StudentView() {
       else if (theme === 'coffee-light') metaThemeColor.setAttribute('content', '#f5ece5');
       else if (theme === 'ocean-light') metaThemeColor.setAttribute('content', '#e0f2fe');
       else if (theme === 'twilight-light') metaThemeColor.setAttribute('content', '#f3e8ff');
+      else if (theme === 'sun-light') metaThemeColor.setAttribute('content', '#fefce8');
+      else if (theme === 'mono-light') metaThemeColor.setAttribute('content', '#ffffff');
       else if (theme === 'fox') metaThemeColor.setAttribute('content', '#5Dadec');
       else if (theme === 'ocean') metaThemeColor.setAttribute('content', '#0f2027');
       else if (theme === 'twilight') metaThemeColor.setAttribute('content', '#170f23');
+      else if (theme === 'sun') metaThemeColor.setAttribute('content', '#171100');
+      else if (theme === 'mono') metaThemeColor.setAttribute('content', '#0a0a0a');
       else metaThemeColor.setAttribute('content', '#141414');
     }
   }, [theme]);
@@ -202,12 +203,15 @@ function StudentView() {
   const handleThemeCardClick = (baseId) => {
     const isLightMode = theme.includes('-light') || theme === 'light' || theme === 'hearts';
     let finalTheme = baseId;
+    
     if (baseId === 'hearts') {
       finalTheme = isLightMode ? 'hearts' : 'hearts-dark';
     } 
-    else if (['ocean', 'twilight', 'coffee'].includes(baseId)) {
+    // إضافة الثيمات الجديدة لمعالجة المود الفاتح والداكن
+    else if (['ocean', 'twilight', 'coffee', 'sun', 'mono'].includes(baseId)) {
       finalTheme = isLightMode ? `${baseId}-light` : baseId;
     }
+    
     setTheme(finalTheme);
   };
 
@@ -271,7 +275,6 @@ function StudentView() {
     }
   };
 
-  // 🌟 دالة الحضور والغياب الكلي المحسنة 🌟
   const handleBulkAttendance = async (weekIdx, dayName, dayInfo, actionType) => {
     if (!user) return showToast("يجب تسجيل الدخول!", "error");
     if (selectedArchive !== null) return;
@@ -279,7 +282,7 @@ function StudentView() {
 
     const updates = {};
     dayInfo.subjects.forEach((subj) => {
-      const subjId = subj.id; // الاعتماد على معرّف المادة الثابت ID بدلاً من Index
+      const subjId = subj.id; 
       const currentStatus = userAttendance[`week_${weekIdx}`]?.[dayName]?.[subjId];
       
       if (actionType === 'all_present' || actionType === 'all_absent') {
@@ -292,7 +295,6 @@ function StudentView() {
     });
 
     try {
-      // استخدام update بدلاً من set لعدم مسح بيانات الحضور للمواد المخفية أو الكروبات الأخرى
       const dbRef = ref(database, `users/${user.uid}/attendance/week_${weekIdx}/${dayName}`);
       await update(dbRef, updates);
       if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
@@ -661,7 +663,6 @@ function StudentView() {
         </div>
       ))}
       
-      {/* 🌟 تمرير الخصائص للهيدر 🌟 */}
       <Header 
         currentTheme={theme} 
         onThemeSelect={handleThemeSelect} 

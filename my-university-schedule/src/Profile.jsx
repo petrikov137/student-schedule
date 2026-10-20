@@ -1,7 +1,9 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { COURSE_SETTINGS, staticTimetable } from './Schedule/ScheduleData/CourseConfig';
 import { ref, onValue } from 'firebase/database';
-import { database } from './firebase';
+import { database, auth, googleProvider } from './firebase';
+import { signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
 
 // --- الأيقونات ---
 const LectureIcon = () => ( <svg width="18" height="18" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z" /></svg> );
@@ -10,28 +12,39 @@ const AssignmentIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" viewBox="
 const CheckIcon = () => ( <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> );
 const XIcon = () => ( <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> );
 
-
 const StudentIcon = () => (
-  <svg
-    width="66"
-    height="66"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <circle cx="12" cy="9" r="3" />
-    <path d="M6.5 19a5.5 5.5 0 0 1 11 0" />
+  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+    <circle cx="12" cy="7" r="4"></circle>
+  </svg>
+);
+
+// أيقونات الإيميل والقفل لواجهة تسجيل الدخول النظيفة
+const MailIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+    <polyline points="22,6 12,13 2,6"></polyline>
+  </svg>
+);
+
+const LockIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+  </svg>
+);
+
+const ArrowRightIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="5" y1="12" x2="19" y2="12"></line>
+    <polyline points="12 5 19 12 12 19"></polyline>
   </svg>
 );
 
 // أيقونات بسيطة للأنواع
 const TypeIcon = ({ type }) => {
   if (type === 'مختبر') return <LabIcon />;
-  if (type === 'امتحان') return <span>!</span>;
+  if (type === 'امتحان') return <span style={{fontWeight:'bold'}}>!</span>;
   if (type === 'واجب' || type === 'تقرير') return <AssignmentIcon />;
   return <LectureIcon />; // افتراضي للمحاضرة
 };
@@ -59,6 +72,15 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
   // 🌟 حالة إخفاء الإيميل 🌟
   const [isEmailHidden, setIsEmailHidden] = useState(false);
 
+  // 🌟 حالات تسجيل الدخول المدمجة 🌟
+  const [showLoginView, setShowLoginView] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
   const [bio, setBio] = useState('');
   useEffect(() => {
     if (user) {
@@ -73,6 +95,42 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
       return () => unsub();
     }
   }, [user]);
+
+  // --- دوال المصادقة (Authentication) المدمجة ---
+  const handleGoogleLogin = async () => {
+    setAuthLoading(true);
+    setAuthError("");
+    try {
+      await signInWithPopup(auth, googleProvider);
+      setShowLoginView(false);
+    } catch (err) {
+      setAuthError("فشل تسجيل الدخول بواسطة جوجل.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleEmailLogin = async (e) => {
+    e.preventDefault();
+    if (!loginEmail || !loginPassword) {
+      setAuthError("يرجى إدخال البريد الإلكتروني وكلمة المرور.");
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError("");
+    try {
+      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      setShowLoginView(false);
+    } catch (err) {
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setAuthError("البريد الإلكتروني أو كلمة المرور غير صحيحة.");
+      } else {
+        setAuthError("فشل تسجيل الدخول، يرجى المحاولة مرة أخرى.");
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   const statsDetails = useMemo(() => {
     if (!userAttendance || !allScheduleData) return {};
@@ -189,39 +247,181 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
             0% { opacity: 0; transform: translateY(-15px) scale(0.98); }
             100% { opacity: 1; transform: translateY(0) scale(1); }
           }
-          .animate-wrapper {
-            animation: cascadeIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-            opacity: 0;
+          @keyframes fadeSwitch {
+            0% { opacity: 0; transform: scale(0.97); }
+            100% { opacity: 1; transform: scale(1); }
           }
-          .animate-sub-card {
-            animation: slideDownSubCard 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-            opacity: 0;
-          }
+          .animate-wrapper { animation: cascadeIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; opacity: 0; }
+          .animate-sub-card { animation: slideDownSubCard 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; opacity: 0; }
+          .fade-switch { animation: fadeSwitch 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+          
+          /* تخصيص الـ input ليكون فاخراً */
+          .auth-input::placeholder { color: var(--text-muted); opacity: 0.6; }
+          .auth-input:focus { border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 59, 130, 246), 0.15); }
         `}
       </style>
 
       {!user ? (
-        <div className="day-card" style={{ backgroundColor: 'var(--card-bg-normal)', padding: '40px 20px', textAlign: 'center', borderRadius: '15px', border: '1px solid var(--border-line)' }}>
-          <div style={{ width: '80px', height: '80px', backgroundColor: 'var(--card-bg-locked)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', border: '1px solid var(--border-line)' }}>
-            <StudentIcon />
-          </div>
-          <h2 style={{ color: 'var(--text-pure)', marginBottom: '10px' }}>حساب الطالب</h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '30px', fontSize: '14px', lineHeight: '1.6' }}>
-            سجل دخولك الآن لإنشاء ملفك الشخصي والوصول إلى ميزات متقدمة 
-          </p>
+        <div className="day-card fade-switch" style={{ backgroundColor: 'var(--card-bg-normal)', padding: '0', borderRadius: '20px', border: '1px solid var(--border-line)', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
           
-          <button 
-            onClick={() => navigate('/login')}
-            style={{ 
-              backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '12px', padding: '14px 20px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '280px', margin: '0 auto', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', transition: 'transform 0.2s', WebkitTapHighlightColor: 'transparent'
-            }}
-            onMouseDown={(e) => e.target.style.transform = 'scale(0.95)'}
-            onMouseUp={(e) => e.target.style.transform = 'scale(1)'}
-          >
-            تسجيل الدخول للمتابعة
-          </button>
+          {!showLoginView ? (
+            // --- شاشة الزائر الافتراضية ---
+            <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+              <div style={{ width: '80px', height: '80px', backgroundColor: 'var(--card-bg-locked)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', border: '1px solid var(--border-line)', color: 'var(--text-muted)' }}>
+                <StudentIcon />
+              </div>
+              <h2 style={{ color: 'var(--text-pure)', marginBottom: '12px', fontSize: '22px' }}>حساب الطالب</h2>
+              <p style={{ color: 'var(--text-muted)', marginBottom: '32px', fontSize: '14px', lineHeight: '1.6', padding: '0 10px' }}>
+                سجل دخولك الآن لإنشاء ملفك الشخصي، إدارة حضورك، والوصول إلى ميزات النظام المتقدمة.
+              </p>
+              
+              <button 
+                onClick={() => setShowLoginView(true)}
+                style={{ 
+                  backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '14px', padding: '16px 24px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '280px', margin: '0 auto', boxShadow: '0 6px 15px rgba(0,0,0,0.2)', transition: 'transform 0.2s', WebkitTapHighlightColor: 'transparent'
+                }}
+                onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.96)'}
+                onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                تسجيل الدخول للمتابعة
+              </button>
+            </div>
+          ) : (
+            // --- واجهة تسجيل الدخول المدمجة والفاخرة ---
+            <div className="fade-switch" style={{ padding: '30px 24px', position: 'relative' }}>
+              
+             
+
+              <div style={{ textAlign: 'center', marginBottom: '30px', marginTop: '10px' }}>
+                <h2 style={{ color: 'var(--text-pure)', margin: '0 0 8px 0', fontSize: '24px', letterSpacing: '0.5px' }}>Versa</h2>
+                <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '14px' }}>أهلاً بك مجدداً في نظام الإدارة</p>
+              </div>
+
+              {authError && (
+                <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '12px', borderRadius: '12px', fontSize: '13px', textAlign: 'center', marginBottom: '20px', fontWeight: 'bold' }}>
+                  {authError}
+                </div>
+              )}
+
+              {/* زر جوجل (تصميم قياسي نظيف) */}
+              <button 
+                onClick={handleGoogleLogin} disabled={authLoading}
+                style={{ 
+                  width: '100%', backgroundColor: '#ffffff', color: '#3c4043', border: '1px solid #dadce0', borderRadius: '14px', 
+                  padding: '14px', fontSize: '15px', fontWeight: 'bold', cursor: authLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', opacity: authLoading ? 0.7 : 1, WebkitTapHighlightColor: 'transparent'
+                }}
+                onMouseEnter={(e) => !authLoading && (e.currentTarget.style.backgroundColor = '#f8f9fa')}
+                onMouseLeave={(e) => !authLoading && (e.currentTarget.style.backgroundColor = '#ffffff')}
+              >
+                {authLoading ? ( <span style={{ color: '#3c4043' }}>جاري التحميل...</span> ) : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                    </svg>
+                    المتابعة باستخدام Google
+                  </>
+                )}
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', width: '100%', margin: '24px 0' }}>
+                  <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-line)' }}></div>
+                  <span style={{ padding: '0 15px', color: 'var(--text-muted)', fontSize: '13px', fontWeight: 'bold' }}>أو باستخدام البريد</span>
+                  <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-line)' }}></div>
+              </div>
+
+              {/* فورم الإيميل والباسورد */}
+              <form onSubmit={handleEmailLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ position: 'relative' }}>
+                  <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex' }}>
+                    <MailIcon />
+                  </div>
+                  <input 
+                    type="email" 
+                    placeholder="البريد الإلكتروني" 
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    required
+                    className="auth-input"
+                    style={{
+                      width: '100%', padding: '14px 44px 14px 14px', borderRadius: '12px', border: '1px solid var(--border-line)',
+                      backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', fontSize: '15px', outline: 'none',
+                      boxSizing: 'border-box', transition: 'all 0.3s ease', fontFamily: 'inherit'
+                    }}
+                  />
+                </div>
+
+                <div style={{ position: 'relative' }}>
+  <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex', pointerEvents: 'none' }}>
+    <LockIcon />
+  </div>
+  
+  <input 
+    type={showPassword ? "text" : "password"} 
+    placeholder="كلمة المرور" 
+    value={loginPassword}
+    onChange={(e) => setLoginPassword(e.target.value)}
+    required
+    className="auth-input"
+    style={{
+      width: '100%', padding: '14px 44px 14px 44px', borderRadius: '12px', border: '1px solid var(--border-line)',
+      backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', fontSize: '15px', outline: 'none',
+      boxSizing: 'border-box', transition: 'all 0.3s ease', fontFamily: 'inherit'
+    }}
+  />
+
+  <button
+    type="button"
+    onClick={() => setShowPassword(!showPassword)}
+    style={{
+      position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)',
+      background: 'transparent', border: 'none', color: showPassword ? 'var(--primary-color)' : 'var(--text-muted)',
+      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px',
+      borderRadius: '50%', transition: 'color 0.2s', WebkitTapHighlightColor: 'transparent'
+    }}
+  >
+    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+  </button>
+</div>
+
+                <button 
+                  type="submit" 
+                  disabled={authLoading}
+                  style={{ 
+                    width: '100%', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '14px', 
+                    padding: '16px', fontSize: '16px', fontWeight: 'bold', cursor: authLoading ? 'not-allowed' : 'pointer', 
+                    marginTop: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', transition: 'transform 0.2s', opacity: authLoading ? 0.8 : 1,
+                    WebkitTapHighlightColor: 'transparent'
+                  }}
+                  onMouseDown={(e) => !authLoading && (e.currentTarget.style.transform = 'scale(0.97)')}
+                  onMouseUp={(e) => !authLoading && (e.currentTarget.style.transform = 'scale(1)')}
+                >
+                  تسجيل الدخول
+                </button>
+              </form>
+
+              <button 
+                onClick={() => setShowLoginView(false)} 
+                style={{ 
+                  width: '100%', backgroundColor: 'transparent', color: 'var(--text-muted)', border: 'none', 
+                  padding: '16px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginTop: '12px',
+                  transition: 'color 0.2s', WebkitTapHighlightColor: 'transparent'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-pure)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+              >
+                المتابعة كزائر
+              </button>
+            </div>
+          )}
         </div>
       ) : (
+        // ==========================================================
+        // --- واجهة المستخدم المسجل (كما كانت بدون أي تغيير) ---
+        // ==========================================================
         <>
           <div className="day-card animate-wrapper" style={{ animationDelay: '0s', backgroundColor: 'var(--card-bg-normal)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-line)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
              
@@ -499,3 +699,4 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
     </div>
   );
 }
+

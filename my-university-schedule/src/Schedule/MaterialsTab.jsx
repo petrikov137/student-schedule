@@ -165,7 +165,7 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
               <div style={{ marginBottom: '20px', padding: '20px', backgroundColor: 'rgba(239, 68, 68, 0.05)', borderRadius: '50%', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
                 <PdfIcon />
               </div>
-              <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '10px' }}>{viewerData.title}</h3>
+              {/* <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '10px' }}>{viewerData.title}</h3> */}
               <a 
                 href={offlineBlobUrl} 
                 target="_blank" 

@@ -496,16 +496,40 @@ export default function Settings({
         />
       </SettingsGroup>
 
-      {/* 3. مجموعة الحساب 🌟 (تم التعديل للفتح عبر النوافذ العائمة) 🌟 */}
+      {/* 3. مجموعة الحساب   */}
       <SettingsGroup title="الحساب والأمان">
         {user ? (
           <>
-            <SettingsItem icon={<UserIcon />} color="#6366f1" title="الاسم الشخصي" subtitle={user.displayName || 'انقر لتحديد اسمك'} onClick={() => openModal('name', user.displayName || '')} />
-            <SettingsItem icon={<MailIcon />} color="#f43f5e" title="البريد الإلكتروني" subtitle={user.email} />
-            <SettingsItem icon={<BioIcon />} color="#0ea5e9" title="البايو (النبذة)" subtitle="اكتب ما يدور في بالك" onClick={() => openModal('bio')} />
-            <SettingsItem icon={<LockIcon />} color="#8b5cf6" title="تغيير كلمة المرور" onClick={() => openModal('password')} />
-            <SettingsItem icon={<LogoutIcon />} color="#ef4444" title="تسجيل الخروج" isDestructive={true} onClick={() => openModal('logout')} />
-            <SettingsItem icon={<TrashIcon />} color="#ef4444" title="حذف الحساب نهائياً" isLast={true} isDestructive={true} onClick={() => openModal('delete')} />
+            <SettingsItem 
+              icon={<UserIcon />} color="#6366f1" 
+              title="الاسم الشخصي" 
+              onClick={() => openModal('name', user.displayName || '')} 
+            />
+            <SettingsItem 
+              icon={<MailIcon />} color="#f43f5e" 
+              title="البريد الإلكتروني" 
+              onClick={() => showToast(`البريد: ${user.email}`)} 
+            />
+            <SettingsItem 
+              icon={<BioIcon />} color="#0ea5e9" 
+              title="البايو (النبذة)" subtitle="اكتب ما يدور في بالك" 
+              onClick={() => openModal('bio')} 
+            />
+            <SettingsItem 
+              icon={<LockIcon />} color="#8b5cf6" 
+              title="تغيير كلمة المرور" 
+              onClick={() => showToast("قريباً.. الميزة قيد التطوير")} 
+            />
+            <SettingsItem 
+              icon={<LogoutIcon />} color="#ef4444" 
+              title="تسجيل الخروج" isDestructive={true} 
+              onClick={() => openModal('logout')} 
+            />
+            <SettingsItem 
+              icon={<TrashIcon />} color="#ef4444" 
+              title="حذف الحساب نهائياً" isLast={true} isDestructive={true} 
+              onClick={() => openModal('delete')} 
+            />
           </>
         ) : (
           <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -522,7 +546,7 @@ export default function Settings({
       </SettingsGroup>
 
       {/* ========================================================= */}
-      {/* 🌟 نظام النوافذ العائمة (Modals) الفاخر لإعدادات الحساب 🌟 */}
+      {/* 🌟 نظام النوافذ العائمة (Modals)  لإعدادات الحساب 🌟 */}
       {/* ========================================================= */}
       {activeModal && typeof document !== 'undefined' ? createPortal(
         <div 

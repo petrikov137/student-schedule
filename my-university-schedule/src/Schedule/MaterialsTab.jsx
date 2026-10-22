@@ -445,7 +445,7 @@ export default function MaterialsTab({
   </div>
 )}
                 {canEdit && (
-                  <button onClick={(e) => openAddModal(subjName, e)} style={{ width: '100%', padding: '11px', marginBottom: '12px', borderRadius: '12px', border: '1px dashed var(--primary-color)', backgroundColor: 'rgba(0, 148, 247, 0.08)', color: 'var(--primary-color)', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent' }}>+ إضافة ملزمة (PDF حصراً)</button>
+                  <button onClick={(e) => openAddModal(subjName, e)} style={{ width: '100%', padding: '11px', marginBottom: '12px', borderRadius: '12px', border: '1px dashed var(--primary-color)', backgroundColor: 'rgba(0, 148, 247, 0.08)', color: 'var(--primary-color)', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent' }}>+ إضافة ملزمة </button>
                 )}
                 {count > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

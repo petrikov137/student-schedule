@@ -850,6 +850,7 @@ function StudentView() {
           days={days}
           currentWeek={currentWeek}
           courseSubjectsList={courseSubjectsList}
+          user={user}
         />
       )}
 

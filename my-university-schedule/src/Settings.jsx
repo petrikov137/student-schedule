@@ -484,8 +484,8 @@ export default function Settings({
         <SettingsItem 
           icon={<DetailsIcon />} color="#10b981" 
           title="تفاصيل المواد" 
-          subtitle="إخفاء الملاحظات الطويلة من الجدول"
-          rightElement={<ToggleSwitch isChecked={hideDetails} onChange={() => toggleToggle(setHideDetails, 'app-hide-details')} />}
+          subtitle="إظهار الملاحظات الطويلة في الجدول"
+          rightElement={<ToggleSwitch isChecked={!hideDetails} onChange={() => toggleToggle(setHideDetails, 'app-hide-details')} />}
         />
         <SettingsItem 
           icon={<TeacherIcon />} color="#14b8a6" 

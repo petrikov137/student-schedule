@@ -140,13 +140,19 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
       width: '100vw', height: '100vh', backgroundColor: '#0a0a0c', zIndex: 999999,
       display: 'flex', flexDirection: 'column', direction: 'rtl', animation: 'viewerFadeIn 0.25s ease forwards'
     }}>
+      
+      {/* الشريط العلوي (ظاهر دائماً) */}
       <div style={{ height: '52px', backgroundColor: 'var(--card-bg-normal)', borderBottom: '1px solid var(--border-line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', flexShrink: 0 }}>
         <span style={{ color: 'var(--text-pure)', fontWeight: 'bold', fontSize: '15px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '75%' }}>
           {viewerData.title}
         </span>
-        <button onClick={onClose} style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '10px', padding: '6px 14px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
-          إغلاق
-        </button>
+        
+        {/* نخفي زر الإغلاق من هنا فقط في حالة الهاتف (الأوفلاين) لأنه تم نقله للأسفل */}
+        {!(isMobile && viewerData.isOffline) && (
+          <button onClick={onClose} style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '10px', padding: '6px 14px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+            إغلاق
+          </button>
+        )}
       </div>
 
       <div style={{ flex: 1, width: '100%', height: 'calc(100vh - 52px)', position: 'relative', overflowY: 'hidden', backgroundColor: '#121215', WebkitOverflowScrolling: 'touch' }}>
@@ -165,19 +171,38 @@ const FullscreenDocumentViewer = ({ viewerData, onClose }) => {
               <div style={{ marginBottom: '20px', padding: '20px', backgroundColor: 'rgba(239, 68, 68, 0.05)', borderRadius: '50%', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
                 <PdfIcon />
               </div>
-              {/* <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '10px' }}>{viewerData.title}</h3> */}
-              <a 
-                href={offlineBlobUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                style={{
-                  backgroundColor: 'var(--primary-color)', color: '#fff', padding: '14px 30px',
-                  borderRadius: '14px', textDecoration: 'none', fontWeight: 'bold', fontSize: '15px',
-                  boxShadow: '0 4px 15px rgba(0, 148, 247, 0.3)', display: 'inline-block', WebkitTapHighlightColor: 'transparent'
-                }}
-              >
-                فتح الملف
-              </a>
+              <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '10px' }}>{viewerData.title}</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', lineHeight: '1.6', marginBottom: '30px', maxWidth: '300px' }}>
+                نظام الهواتف لا يدعم العرض الداخلي للملفات. اضغط على الزر أدناه لفتح وعرض الملف مباشرة باستخدام قارئ هاتفك المدمج.
+              </p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '260px' }}>
+                <a 
+                  href={offlineBlobUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{
+                    backgroundColor: 'var(--primary-color)', color: '#fff', padding: '14px',
+                    borderRadius: '14px', textDecoration: 'none', fontWeight: 'bold', fontSize: '15px',
+                    boxShadow: '0 4px 15px rgba(0, 148, 247, 0.3)', display: 'block', WebkitTapHighlightColor: 'transparent'
+                  }}
+                >
+                  فتح الملف 📄
+                </a>
+                
+                {/* 🌟 زر الإغلاق الذي تم نقله إلى هنا 🌟 */}
+                <button 
+                  onClick={onClose}
+                  style={{
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)',
+                    borderRadius: '14px', padding: '12px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
+                    display: 'block', width: '100%', WebkitTapHighlightColor: 'transparent'
+                  }}
+                >
+                  إغلاق
+                </button>
+              </div>
+
             </div>
           ) : (
             // 💻 العرض المباشر للحاسوب
@@ -222,6 +247,21 @@ export default function MaterialsTab({
   const [matName, setMatName] = useState('');
   const [matUrl, setMatUrl] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // قاموس النصوص الخاصة بكل مادة
+  const subjectNotes = {
+     " ذكاء اصطناعي | نظري" : "رمز الكلاس : m7rmy3sz",
+  " ذكاء اصطناعي | عملي" : "رمز الكلاس :  : s7s4ycu7",
+  " نظم التشغيل | نظري" : "رمز الكلاس : jvlkd7wx",
+  " نظم التشغيل | عملي" : "رمز الكلاس : aid7onpu",
+  "برمجة مرئية | نظري" : "رمز الكلاس : mziahm5i",
+  "برمجة مرئية | عملي" : "رمز الكلاس : ?",
+  " مترجمات | نظري" : "رمز الكلاس : 37mtd5dq",
+  " مترجمات | عملي" : "رمز الكلاس : fdlreypm",
+  " تشفير | نظري" : "رمز الكلاس : xxhyinmt  ",
+  " تشفير | عملي" : "رمز الكلاس : qt3ne5so",
+  " خوارزميات | نظري" : "رمز الكلاس : y2evv4sn",
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -399,6 +439,11 @@ export default function MaterialsTab({
             <div style={{ maxHeight: isExpanded ? '2000px' : '0px', opacity: isExpanded ? 1 : 0, overflow: 'hidden', transition: isExpanded ? 'max-height 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease' : 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease' }}>
               <div style={{ padding: '0 18px 18px 18px', direction: 'rtl' }}>
                 <div style={{ height: '1px', backgroundColor: 'var(--border-line)', marginBottom: '15px', opacity: 0.7 }} />
+                {subjectNotes[subjName] && (
+  <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginBottom: '12px', textAlign: 'right', fontWeight: 'bold' }}>
+    {subjectNotes[subjName]}
+  </div>
+)}
                 {canEdit && (
                   <button onClick={(e) => openAddModal(subjName, e)} style={{ width: '100%', padding: '11px', marginBottom: '12px', borderRadius: '12px', border: '1px dashed var(--primary-color)', backgroundColor: 'rgba(0, 148, 247, 0.08)', color: 'var(--primary-color)', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent' }}>+ إضافة ملزمة (PDF حصراً)</button>
                 )}

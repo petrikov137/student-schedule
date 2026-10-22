@@ -34,27 +34,23 @@ export default function InstallPrompt() {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     if (isStandalone) return; // إذا كان مثبتاً، لا نفعل شيئاً
 
-    // 2. فحص إذا كان المستخدم قد رفض التثبيت سابقاً
-    const hasDismissed = localStorage.getItem('install_prompt_dismissed');
-    if (hasDismissed) return;
+    // تم حذف كود حفظ التفضيل (localStorage) لكي تظهر دائماً في كل زيارة للموقع
 
-    // 3. التقاط حدث التثبيت لأجهزة الأندرويد (Chrome/Edge)
+    // 2. التقاط حدث التثبيت لأجهزة الأندرويد (Chrome/Edge)
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault(); // منع ظهور النافذة الافتراضية المزعجة للمتصفح
       setDeferredPrompt(e);
-      // إظهار نافذتنا الأنيقة بعد 3 ثوانٍ من فتح الموقع
-      setTimeout(() => setShowPrompt(true), 3000);
+      setShowPrompt(true); // إظهار النافذة مباشرة
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // 4. كشف أجهزة الأيفون (iOS Safari)
+    // 3. كشف أجهزة الأيفون (iOS Safari)
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
     
     if (isIosDevice) {
       setIsIOS(true);
-      // إظهار تعليمات الأيفون بعد 3 ثوانٍ
-      setTimeout(() => setShowPrompt(true), 3000);
+      setShowPrompt(true); // إظهار النافذة مباشرة
     }
 
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -73,29 +69,29 @@ export default function InstallPrompt() {
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    // حفظ الرفض لكي لا نزعج الطالب في كل مرة يفتح فيها الموقع
-    localStorage.setItem('install_prompt_dismissed', 'true');
+    // تم حذف حفظ الرفض لكي تعود وتظهر في الزيارة القادمة
   };
 
   if (!showPrompt) return null;
 
   return (
+    // 🌟 خلفية ضبابية تملأ الشاشة وتتوسط النافذة 🌟
     <div style={{
-      position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
-      width: 'calc(100% - 40px)', maxWidth: '400px', zIndex: 999999,
-      animation: 'slideUpPrompt 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards'
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh',
+      backgroundColor: 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+      zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '20px', boxSizing: 'border-box', animation: 'installBackdropFade 0.3s ease forwards'
     }}>
       <style>{`
-        @keyframes slideUpPrompt {
-          from { opacity: 0; transform: translate(-50%, 100%); }
-          to { opacity: 1; transform: translate(-50%, 0); }
-        }
+        @keyframes installBackdropFade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes installPopIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
       `}</style>
       
       <div style={{
-        backgroundColor: 'var(--card-bg-normal)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-        border: '1px solid var(--border-line)', borderRadius: '24px', padding: '20px',
-        boxShadow: '0 20px 40px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '15px', direction: 'rtl'
+        width: '100%', maxWidth: '380px',
+        backgroundColor: 'var(--card-bg-normal)', border: '1px solid var(--border-line)', borderRadius: '24px', 
+        padding: '24px', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: '18px', 
+        direction: 'rtl', animation: 'installPopIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards'
       }}>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -103,17 +99,17 @@ export default function InstallPrompt() {
             <AppIcon />
           </div>
           <div style={{ flex: 1 }}>
-            <h3 style={{ margin: '0 0 4px 0', color: 'var(--text-pure)', fontSize: '16px', fontWeight: 'bold' }}>تثبيت تطبيق Versa</h3>
-            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '12px', lineHeight: '1.5' }}>
-              الوصول السريع للجدول والملازم بدون إنترنت، و استقبال الإشعارات.
+            <h3 style={{ margin: '0 0 4px 0', color: 'var(--text-pure)', fontSize: '18px', fontWeight: 'bold' }}>تثبيت تطبيق Versa</h3>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '13px', lineHeight: '1.5' }}>
+              الوصول السريع للجدول والملازم بدون إنترنت، واستقبال الإشعارات.
             </p>
           </div>
         </div>
 
         {isIOS ? (
           // 📱 واجهة تعليمات التثبيت الخاصة بالأيفون (iOS)
-          <div style={{ backgroundColor: 'var(--card-bg-locked)', borderRadius: '14px', padding: '12px', border: '1px solid var(--border-line)' }}>
-            <p style={{ margin: '0 0 8px 0', color: 'var(--text-pure)', fontSize: '13px', textAlign: 'center', fontWeight: 'bold' }}>
+          <div style={{ backgroundColor: 'var(--card-bg-locked)', borderRadius: '14px', padding: '15px', border: '1px solid var(--border-line)' }}>
+            <p style={{ margin: '0 0 10px 0', color: 'var(--text-pure)', fontSize: '14px', textAlign: 'center', fontWeight: 'bold' }}>
               لتثبيت التطبيق على جهازك:
             </p>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '13px' }}>
@@ -121,7 +117,7 @@ export default function InstallPrompt() {
               <span style={{ color: 'var(--primary-color)' }}><ShareIcon /></span>
               <span>في الأسفل</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '13px', marginTop: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '13px', marginTop: '8px' }}>
               <span>2. اختر "إضافة للشاشة الرئيسية"</span>
               <span style={{ color: 'var(--primary-color)' }}><AddHomeIcon /></span>
             </div>
@@ -143,14 +139,15 @@ export default function InstallPrompt() {
         <button 
           onClick={handleDismiss}
           style={{
-            width: '100%', backgroundColor: 'transparent', color: 'var(--text-muted)', border: 'none',
-            fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', padding: '5px', WebkitTapHighlightColor: 'transparent'
+            width: '100%', backgroundColor: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-line)', borderRadius: '14px',
+            fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', padding: '12px', WebkitTapHighlightColor: 'transparent'
           }}
         >
-          ليس الآن
+          إغلاق
         </button>
 
       </div>
     </div>
   );
 }
+

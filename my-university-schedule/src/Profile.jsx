@@ -1,14 +1,15 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { COURSE_SETTINGS, staticTimetable } from './Schedule/ScheduleData/CourseConfig';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, set, update  } from 'firebase/database';
 import { database, auth, googleProvider } from './firebase';
 import { signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
 
 // --- الأيقونات ---
 const LectureIcon = () => ( <svg width="18" height="18" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z" /></svg> );
 const LabIcon = () => ( <svg width="18" height="18" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25" /></svg> );
-const AssignmentIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="100%" height="100%"><path d="M11.25 5.337c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.036 1.007-1.875 2.25-1.875S15 2.34 15 3.375c0 .369-.128.713-.349 1.003-.215.283-.401.604-.401.959 0 .332.278.598.61.578 1.91-.114 3.79-.342 5.632-.676a.75.75 0 0 1 .878.645 49.17 49.17 0 0 1 .376 5.452.657.657 0 0 1-.66.664c-.354 0-.675-.186-.958-.401a1.647 1.647 0 0 0-1.003-.349c-1.035 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401.31 0 .557.262.534.571a48.774 48.774 0 0 1-.595 4.845.75.75 0 0 1-.61.61c-1.82.317-3.673.533-5.555.642a.58.58 0 0 1-.611-.581c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.035-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959a.641.641 0 0 1-.658.643 49.118 49.118 0 0 1-4.708-.36.75.75 0 0 1-.645-.878c.293-1.614.504-3.257.629-4.924A.53.53 0 0 0 5.337 15c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.036 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.369 0 .713.128 1.003.349.283.215.604.401.959.401a.656.656 0 0 0 .659-.663 47.703 47.703 0 0 0-.31-4.82.75.75 0 0 1 .83-.832c1.343.155 2.703.254 4.077.294a.64.64 0 0 0 .657-.642Z" /></svg> );
+const AssignmentIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M11.25 5.337c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.036 1.007-1.875 2.25-1.875S15 2.34 15 3.375c0 .369-.128.713-.349 1.003-.215.283-.401.604-.401.959 0 .332.278.598.61.578 1.91-.114 3.79-.342 5.632-.676a.75.75 0 0 1 .878.645 49.17 49.17 0 0 1 .376 5.452.657.657 0 0 1-.66.664c-.354 0-.675-.186-.958-.401a1.647 1.647 0 0 0-1.003-.349c-1.035 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401.31 0 .557.262.534.571a48.774 48.774 0 0 1-.595 4.845.75.75 0 0 1-.61.61c-1.82.317-3.673.533-5.555.642a.58.58 0 0 1-.611-.581c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.035-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959a.641.641 0 0 1-.658.643 49.118 49.118 0 0 1-4.708-.36.75.75 0 0 1-.645-.878c.293-1.614.504-3.257.629-4.924A.53.53 0 0 0 5.337 15c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.036 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.369 0 .713.128 1.003.349.283.215.604.401.959.401a.656.656 0 0 0 .659-.663 47.703 47.703 0 0 0-.31-4.82.75.75 0 0 1 .83-.832c1.343.155 2.703.254 4.077.294a.64.64 0 0 0 .657-.642Z" /></svg> );
 const CheckIcon = () => ( <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> );
 const XIcon = () => ( <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> );
 
@@ -19,7 +20,6 @@ const StudentIcon = () => (
   </svg>
 );
 
-// أيقونات الإيميل والقفل لواجهة تسجيل الدخول النظيفة
 const MailIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
@@ -41,15 +41,13 @@ const ArrowRightIcon = () => (
   </svg>
 );
 
-// أيقونات بسيطة للأنواع
 const TypeIcon = ({ type }) => {
   if (type === 'مختبر') return <LabIcon />;
   if (type === 'امتحان') return <span style={{fontWeight:'bold'}}>!</span>;
   if (type === 'واجب' || type === 'تقرير') return <AssignmentIcon />;
-  return <LectureIcon />; // افتراضي للمحاضرة
+  return <LectureIcon />; 
 };
 
-// 🌟 أيقونات إخفاء وإظهار الإيميل 🌟
 const EyeIcon = () => (
   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -68,35 +66,105 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
   const [viewMode, setViewMode] = useState('flat'); 
   const [expandedSubject, setExpandedSubject] = useState({}); 
   const [animationKey, setAnimationKey] = useState(Date.now());
-  
-  // 🌟 حالة إخفاء الإيميل 🌟
   const [isEmailHidden, setIsEmailHidden] = useState(false);
 
-  // 🌟 حالات تسجيل الدخول المدمجة 🌟
   const [showLoginView, setShowLoginView] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
+  // 🌟 حالات وإدارة شعبة الطالب 🌟
+  const [studentGroup, setStudentGroup] = useState('A');
+  const [needsGroupSelection, setNeedsGroupSelection] = useState(false);
   const [bio, setBio] = useState('');
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeletingRecord, setIsDeletingRecord] = useState(false);
+
+  const handleDeleteGroupRecord = async () => {
+    if (!user) return;
+    setIsDeletingRecord(true);
+    try {
+      const updates = {};
+      Object.keys(userAttendance).forEach(weekKey => {
+        const weekData = userAttendance[weekKey];
+        Object.keys(weekData).forEach(dayName => {
+          const dayAttendance = weekData[dayName];
+          const dayScheduleData = allScheduleData[weekKey]?.[dayName] || {};
+
+          Object.keys(dayAttendance).forEach(subjId => {
+            let subjectGroups = [];
+            const staticSubj = (staticTimetable[dayName] || []).find(s => s.id === subjId);
+            if (staticSubj) {
+              subjectGroups = staticSubj.groups || [];
+            } else {
+              const dynamicSubj = (dayScheduleData.dynamicEvents || []).find(d => d.id === subjId);
+              if (dynamicSubj) subjectGroups = dynamicSubj.groups || [];
+            }
+
+            // إذا كانت المادة تابعة لشعبة الطالب الحالية، يتم تحديدها للحذف
+            if (subjectGroups.length === 0 || subjectGroups.includes(studentGroup)) {
+               updates[`users/${user.uid}/attendance/${weekKey}/${dayName}/${subjId}`] = null;
+            }
+          });
+        });
+      });
+
+      await update(ref(database), updates);
+      setIsDeleteModalOpen(false);
+    } catch (error) {
+      console.error("خطأ في حذف السجل:", error);
+    } finally {
+      setIsDeletingRecord(false);
+    }
+  };
+
   useEffect(() => {
     if (user) {
+      // جلب البايو
       const bioRef = ref(database, `users/${user.uid}/bio`);
-      const unsub = onValue(bioRef, (snapshot) => {
+      const unsubBio = onValue(bioRef, (snapshot) => {
+        if (snapshot.exists()) setBio(snapshot.val());
+        else setBio('');
+      });
+
+      // 🌟 جلب الشعبة، وإظهار نافذة الاختيار إذا لم تكن موجودة 🌟
+      const groupRef = ref(database, `users/${user.uid}/group`);
+      const unsubGroup = onValue(groupRef, (snapshot) => {
         if (snapshot.exists()) {
-          setBio(snapshot.val());
+          setStudentGroup(snapshot.val());
+          setNeedsGroupSelection(false);
         } else {
-          setBio('');
+          setNeedsGroupSelection(true); 
         }
       });
-      return () => unsub();
+
+      return () => { unsubBio(); unsubGroup(); };
+    } else {
+      setNeedsGroupSelection(false);
     }
   }, [user]);
 
-  // --- دوال المصادقة (Authentication) المدمجة ---
+  // 🌟 دالة حفظ وتغيير الشعبة 🌟
+  const saveStudentGroup = async (newGroup) => {
+    if (!user) return;
+    try {
+      await set(ref(database, `users/${user.uid}/group`), newGroup);
+      setStudentGroup(newGroup);
+    } catch (e) {
+      console.error("فشل حفظ الشعبة", e);
+    }
+  };
+
+  const cycleGroup = () => {
+    const groups = ['A', 'B', 'C', 'D'];
+    const currentIndex = groups.indexOf(studentGroup);
+    const nextIndex = (currentIndex + 1) % groups.length;
+    saveStudentGroup(groups[nextIndex]);
+  };
+
   const handleGoogleLogin = async () => {
     setAuthLoading(true);
     setAuthError("");
@@ -132,6 +200,7 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
     }
   };
 
+  // 🌟 فلترة السجل بناءً على شعبة الطالب الحالية 🌟
   const statsDetails = useMemo(() => {
     if (!userAttendance || !allScheduleData) return {};
 
@@ -153,6 +222,7 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
           let type = 'محاضرة';
           let name = 'مادة سابقة (غير متوفرة)';
           let isHidden = false;
+          let subjectGroups = [];
 
           const staticSubj = (staticTimetable[dayName] || []).find(s => s.id === subjId);
           if (staticSubj) {
@@ -160,17 +230,24 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
             const override = dayScheduleData.fixedOverrides?.[subjId] || {};
             type = override.type || staticSubj.type;
             isHidden = override.isHidden;
+            subjectGroups = staticSubj.groups || [];
           } else {
             const dynamicSubj = (dayScheduleData.dynamicEvents || []).find(d => d.id === subjId);
             if (dynamicSubj) {
               name = dynamicSubj.name;
               type = dynamicSubj.type;
+              subjectGroups = dynamicSubj.groups || [];
             } else {
               return; 
             }
           }
 
           if (isHidden) return; 
+
+          // 🌟 الفلترة: إذا كانت المادة محصورة بكروبات، وشعبة الطالب ليست منها، يتم إهمالها 🌟
+          if (subjectGroups.length > 0 && !subjectGroups.includes(studentGroup)) {
+            return;
+          }
 
           const targetDate = new Date(COURSE_SETTINGS.startDate);
           targetDate.setDate(targetDate.getDate() + (wIdx * 7) + dIdx);
@@ -203,7 +280,7 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
     });
 
     return details;
-  }, [userAttendance, allScheduleData]);
+  }, [userAttendance, allScheduleData, studentGroup]);
 
   let activeTotalPresent = 0;
   let activeTotalAbsent = 0;
@@ -255,7 +332,6 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
           .animate-sub-card { animation: slideDownSubCard 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; opacity: 0; }
           .fade-switch { animation: fadeSwitch 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
           
-          /* تخصيص الـ input ليكون فاخراً */
           .auth-input::placeholder { color: var(--text-muted); opacity: 0.6; }
           .auth-input:focus { border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 59, 130, 246), 0.15); }
         `}
@@ -265,14 +341,13 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
         <div className="day-card fade-switch" style={{ backgroundColor: 'var(--card-bg-normal)', padding: '0', borderRadius: '20px', border: '1px solid var(--border-line)', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
           
           {!showLoginView ? (
-            // --- شاشة الزائر الافتراضية ---
             <div style={{ padding: '40px 24px', textAlign: 'center' }}>
               <div style={{ width: '80px', height: '80px', backgroundColor: 'var(--card-bg-locked)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', border: '1px solid var(--border-line)', color: 'var(--text-muted)' }}>
                 <StudentIcon />
               </div>
               <h2 style={{ color: 'var(--text-pure)', marginBottom: '12px', fontSize: '22px' }}>حساب الطالب</h2>
               <p style={{ color: 'var(--text-muted)', marginBottom: '32px', fontSize: '14px', lineHeight: '1.6', padding: '0 10px' }}>
-                سجل دخولك الآن لإنشاء ملفك الشخصي، إدارة حضورك، والوصول إلى ميزات النظام المتقدمة.
+                سجل دخولك الآن لإنشاء ملفك الشخصي، إدارة حضورك، تحميل الملازم والوصول إلى ميزات النظام المتقدمة.
               </p>
               
               <button 
@@ -287,14 +362,13 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
               </button>
             </div>
           ) : (
-            // --- واجهة تسجيل الدخول المدمجة والفاخرة ---
             <div className="fade-switch" style={{ padding: '30px 24px', position: 'relative' }}>
               
              
 
               <div style={{ textAlign: 'center', marginBottom: '30px', marginTop: '10px' }}>
                 <h2 style={{ color: 'var(--text-pure)', margin: '0 0 8px 0', fontSize: '24px', letterSpacing: '0.5px' }}>Versa</h2>
-                <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '14px' }}>أهلاً بك مجدداً في نظام الإدارة</p>
+                <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '14px' }}>أهلاً بك في النظام </p>
               </div>
 
               {authError && (
@@ -303,7 +377,6 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
                 </div>
               )}
 
-              {/* زر جوجل (تصميم قياسي نظيف) */}
               <button 
                 onClick={handleGoogleLogin} disabled={authLoading}
                 style={{ 
@@ -333,69 +406,33 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
                   <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-line)' }}></div>
               </div>
 
-              {/* فورم الإيميل والباسورد */}
               <form onSubmit={handleEmailLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ position: 'relative' }}>
                   <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex' }}>
                     <MailIcon />
                   </div>
                   <input 
-                    type="email" 
-                    placeholder="البريد الإلكتروني" 
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    required
-                    className="auth-input"
-                    style={{
-                      width: '100%', padding: '14px 44px 14px 14px', borderRadius: '12px', border: '1px solid var(--border-line)',
-                      backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', fontSize: '15px', outline: 'none',
-                      boxSizing: 'border-box', transition: 'all 0.3s ease', fontFamily: 'inherit'
-                    }}
+                    type="email" placeholder="البريد الإلكتروني" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required className="auth-input"
+                    style={{ width: '100%', padding: '14px 44px 14px 14px', borderRadius: '12px', border: '1px solid var(--border-line)', backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', fontSize: '15px', outline: 'none', boxSizing: 'border-box', transition: 'all 0.3s ease', fontFamily: 'inherit' }}
                   />
                 </div>
 
                 <div style={{ position: 'relative' }}>
-  <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex', pointerEvents: 'none' }}>
-    <LockIcon />
-  </div>
-  
-  <input 
-    type={showPassword ? "text" : "password"} 
-    placeholder="كلمة المرور" 
-    value={loginPassword}
-    onChange={(e) => setLoginPassword(e.target.value)}
-    required
-    className="auth-input"
-    style={{
-      width: '100%', padding: '14px 44px 14px 44px', borderRadius: '12px', border: '1px solid var(--border-line)',
-      backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', fontSize: '15px', outline: 'none',
-      boxSizing: 'border-box', transition: 'all 0.3s ease', fontFamily: 'inherit'
-    }}
-  />
-
-  <button
-    type="button"
-    onClick={() => setShowPassword(!showPassword)}
-    style={{
-      position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)',
-      background: 'transparent', border: 'none', color: showPassword ? 'var(--primary-color)' : 'var(--text-muted)',
-      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px',
-      borderRadius: '50%', transition: 'color 0.2s', WebkitTapHighlightColor: 'transparent'
-    }}
-  >
-    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-  </button>
-</div>
+                  <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex', pointerEvents: 'none' }}>
+                    <LockIcon />
+                  </div>
+                  <input 
+                    type={showPassword ? "text" : "password"} placeholder="كلمة المرور" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required className="auth-input"
+                    style={{ width: '100%', padding: '14px 44px 14px 44px', borderRadius: '12px', border: '1px solid var(--border-line)', backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', fontSize: '15px', outline: 'none', boxSizing: 'border-box', transition: 'all 0.3s ease', fontFamily: 'inherit' }}
+                  />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: showPassword ? 'var(--primary-color)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px', borderRadius: '50%', transition: 'color 0.2s', WebkitTapHighlightColor: 'transparent' }}>
+                    {showPassword ? <EyeIcon /> : <EyeOffIcon />}
+                  </button>
+                </div>
 
                 <button 
-                  type="submit" 
-                  disabled={authLoading}
-                  style={{ 
-                    width: '100%', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '14px', 
-                    padding: '16px', fontSize: '16px', fontWeight: 'bold', cursor: authLoading ? 'not-allowed' : 'pointer', 
-                    marginTop: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', transition: 'transform 0.2s', opacity: authLoading ? 0.8 : 1,
-                    WebkitTapHighlightColor: 'transparent'
-                  }}
+                  type="submit" disabled={authLoading}
+                  style={{ width: '100%', backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '14px', padding: '16px', fontSize: '16px', fontWeight: 'bold', cursor: authLoading ? 'not-allowed' : 'pointer', marginTop: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', transition: 'transform 0.2s', opacity: authLoading ? 0.8 : 1, WebkitTapHighlightColor: 'transparent' }}
                   onMouseDown={(e) => !authLoading && (e.currentTarget.style.transform = 'scale(0.97)')}
                   onMouseUp={(e) => !authLoading && (e.currentTarget.style.transform = 'scale(1)')}
                 >
@@ -405,11 +442,7 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
 
               <button 
                 onClick={() => setShowLoginView(false)} 
-                style={{ 
-                  width: '100%', backgroundColor: 'transparent', color: 'var(--text-muted)', border: 'none', 
-                  padding: '16px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginTop: '12px',
-                  transition: 'color 0.2s', WebkitTapHighlightColor: 'transparent'
-                }}
+                style={{ width: '100%', backgroundColor: 'transparent', color: 'var(--text-muted)', border: 'none', padding: '16px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginTop: '12px', transition: 'color 0.2s', WebkitTapHighlightColor: 'transparent' }}
                 onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-pure)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
               >
@@ -418,9 +451,39 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
             </div>
           )}
         </div>
+
+      ) : needsGroupSelection ? (
+        
+        // 🌟 شاشة إجبار المستخدم الجديد على اختيار الشعبة 🌟
+        <div className="day-card fade-switch" style={{ backgroundColor: 'var(--card-bg-normal)', padding: '40px 24px', textAlign: 'center', borderRadius: '20px', border: '1px solid var(--border-line)', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+          <h2 style={{ color: 'var(--text-pure)', marginBottom: '12px', fontSize: '22px' }}>مرحباً بك في النظام</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', marginBottom: '30px', padding: '0 10px' }}>
+            يرجى تحديد شعبتك الدراسية لكي يتم ضبط موادك وسجل الحضور الخاص بك بدقة تامة.
+          </p>
+         <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', direction: 'ltr' }}>
+            {['A', 'B', 'C', 'D'].map(g => (
+              <button 
+                key={g} 
+                onClick={() => { setNeedsGroupSelection(false); saveStudentGroup(g); }} 
+                style={{ 
+                  width: '50px', height: '50px', borderRadius: '14px', border: '1px solid var(--border-line)', 
+                  backgroundColor: 'var(--card-bg-locked)', color: 'var(--text-pure)', fontSize: '20px', fontWeight: 'bold',
+                  cursor: 'pointer', transition: 'all 0.2s ease', WebkitTapHighlightColor: 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--primary-color)'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'var(--primary-color)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--card-bg-locked)'; e.currentTarget.style.color = 'var(--text-pure)'; e.currentTarget.style.borderColor = 'var(--border-line)'; }}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+
       ) : (
+
         // ==========================================================
-        // --- واجهة المستخدم المسجل (كما كانت بدون أي تغيير) ---
+        // --- واجهة المستخدم المسجل (الملف الشخصي الأساسي) ---
         // ==========================================================
         <>
           <div className="day-card animate-wrapper" style={{ animationDelay: '0s', backgroundColor: 'var(--card-bg-normal)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-line)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -429,10 +492,10 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
                 <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 'bold', flexShrink: 0, boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
                    {userName[0].toUpperCase()}
                 </div>
+                
                 <div style={{ flex: 1, overflow: 'hidden' }}>
                    <h3 style={{ margin: '0 0 4px 0', color: 'var(--text-pure)', fontSize: '18px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</h3>
                    
-                   {/* 🌟 حاوية الإيميل وزر الإخفاء 🌟 */}
                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: isNameArabic ? 'flex-start' : 'flex-start' }}>
                      <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', direction: 'ltr', transition: 'all 0.3s ease' }}>
                        {isEmailHidden ? '••••••••••••••••••••••' : user.email}
@@ -444,14 +507,26 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', 
                          padding: '4px', borderRadius: '6px', transition: 'all 0.2s ease', WebkitTapHighlightColor: 'transparent', flexShrink: 0
                        }}
-                       onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary-color)'; e.currentTarget.style.borderColor = 'var(--primary-color)'; }}
-                       onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border-line)'; }}
                      >
                        {isEmailHidden ? <EyeOffIcon /> : <EyeIcon />}
                      </button>
                    </div>
-
                 </div>
+
+                {/* 🌟 زر تبديل الشعبة الأنيق 🌟 */}
+                <div 
+                  onClick={cycleGroup}
+                  style={{ 
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
+                    cursor: 'pointer', padding: '0 10px', WebkitTapHighlightColor: 'transparent', flexShrink: 0 
+                  }}
+                >
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '-2px' }}>الشعبة</span>
+                  <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--primary-color)', lineHeight: 1, transition: 'color 0.3s ease' }}>
+                    {studentGroup}
+                  </span>
+                </div>
+
              </div>
 
              {bio && (
@@ -688,6 +763,21 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
                   );
                 })}
               </div>
+              {/* زر حذف السجل */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '25px', marginBottom: '10px' }}>
+                <button 
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  style={{
+                    backgroundColor: 'transparent', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444',
+                    borderRadius: '12px', padding: '10px 24px', fontSize: '14px', fontWeight: 'bold',
+                    cursor: 'pointer', transition: 'all 0.2s', WebkitTapHighlightColor: 'transparent'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  حذف السجل
+                </button>
+              </div>
             </div>
           ) : (
             <div style={{ backgroundColor: 'var(--card-bg-normal)', padding: '20px', textAlign: 'center', borderRadius: '15px', border: '1px solid var(--border-line)' }}>
@@ -696,6 +786,48 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
           )}
         </>
       )}
+      {/* نافذة تأكيد حذف السجل */}
+      {isDeleteModalOpen && typeof document !== 'undefined' ? createPortal(
+        <div 
+          onClick={() => !isDeletingRecord && setIsDeleteModalOpen(false)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh',
+            backgroundColor: 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+            zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px', boxSizing: 'border-box', direction: 'rtl', animation: 'fadeSwitch 0.25s ease forwards'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: '370px', backgroundColor: 'var(--card-bg-normal)',
+              border: '1px solid var(--border-line)', borderRadius: '22px', padding: '24px 20px',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', gap: '16px',
+              textAlign: 'center', animation: 'cascadeIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+            }}
+          >
+            <h3 style={{ margin: 0, color: '#ef4444', fontSize: '18px' }}>تحذير!</h3>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6' }}>
+              هل أنت متأكد من حذف سجل الحضور والغياب <strong>لشعبة ({studentGroup})</strong> نهائياً؟
+            </p>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+              <button 
+                onClick={handleDeleteGroupRecord} disabled={isDeletingRecord}
+                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', backgroundColor: '#ef4444', color: '#fff', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' }}
+              >
+                {isDeletingRecord ? '...' : 'تأكيد الحذف'}
+              </button>
+              <button 
+                onClick={() => setIsDeleteModalOpen(false)} disabled={isDeletingRecord}
+                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid var(--border-line)', backgroundColor: 'transparent', color: 'var(--text-muted)', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' }}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      ) : null}
     </div>
   );
 }

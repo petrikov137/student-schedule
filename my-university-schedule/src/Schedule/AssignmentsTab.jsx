@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export default function AssignmentsTab({ 
@@ -93,7 +94,7 @@ export default function AssignmentsTab({
                     </div>
                     <p> </p>
                      <div style={{ marginBottom: '8px', color: 'var(--text-details)', fontWeight: 'bold', fontSize: '12px' }}>
-                       تاريخ التسليم: {assign.dayStr} ({assign.targetDate.getDate()} / {assign.targetDate.getMonth() + 1})
+                       {assign.type === 'امتحان' ? 'تاريخ الامتحان:' : 'تاريخ التسليم:'} {assign.dayStr} ({assign.targetDate.getDate()} / {assign.targetDate.getMonth() + 1})
                       </div>
                   </div>
                 </div>
@@ -109,3 +110,4 @@ export default function AssignmentsTab({
     </div>
   );
 }
+

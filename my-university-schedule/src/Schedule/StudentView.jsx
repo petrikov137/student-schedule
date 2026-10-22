@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from '../Header';
 import ExamScheduleStudent from '../ExamScheduleStudent';
@@ -9,7 +10,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import localforage from 'localforage'; 
 import { currentAvailableSubjects } from './ScheduleData/CurrentSubjects';
-import { COURSE_SETTINGS, courseSubjectsList } from './ScheduleData/CourseConfig';
+import { COURSE_SETTINGS, courseSubjectsList, staticTimetable } from './ScheduleData/CourseConfig';
 
 import DayCard from './DayCard';
 import MaterialsTab from './MaterialsTab';
@@ -69,14 +70,12 @@ function StudentView() {
   const isEventLongPress = useRef(false);
   const [studentToast, setStudentToast] = useState({ show: false, message: '', type: '' });
 
-  // 🌟 ترتيب الثيمات الجديد مع إضافة شمس وأحادي (أسود وأبيض) 🌟
   const themeCards = [
     { id: 'ocean', name: 'محيـط', color: '#0094f7' },
     { id: 'twilight', name: 'غسق', color: '#9333ea' },
     { id: 'hearts', name: 'زهـري', color: '#f43f5e' },
     { id: 'coffee', name: 'قهـوة', color: '#d28c47' },
     { id: 'mono', name: 'أحادي', color: '#a3a3a3' },
-    { id: 'mono-light', name: 'أحادي فاتح', color: '#d4d4d4' },
     { id: 'glass', name: 'زجـاج', color: '#a8b2c1' },
     { id: 'matrix', name: 'ماتريكس', color: '#00ff41' },
     { id: 'fox', name: 'ثعلب', color: '#ff8c00' },
@@ -189,12 +188,10 @@ function StudentView() {
       else if (theme === 'coffee-light') metaThemeColor.setAttribute('content', '#f5ece5');
       else if (theme === 'ocean-light') metaThemeColor.setAttribute('content', '#e0f2fe');
       else if (theme === 'twilight-light') metaThemeColor.setAttribute('content', '#f3e8ff');
-      else if (theme === 'sun-light') metaThemeColor.setAttribute('content', '#fefce8');
       else if (theme === 'mono-light') metaThemeColor.setAttribute('content', '#ffffff');
       else if (theme === 'fox') metaThemeColor.setAttribute('content', '#5Dadec');
       else if (theme === 'ocean') metaThemeColor.setAttribute('content', '#0f2027');
       else if (theme === 'twilight') metaThemeColor.setAttribute('content', '#170f23');
-      else if (theme === 'sun') metaThemeColor.setAttribute('content', '#171100');
       else if (theme === 'mono') metaThemeColor.setAttribute('content', '#0a0a0a');
       else metaThemeColor.setAttribute('content', '#141414');
     }
@@ -207,8 +204,7 @@ function StudentView() {
     if (baseId === 'hearts') {
       finalTheme = isLightMode ? 'hearts' : 'hearts-dark';
     } 
-    // إضافة الثيمات الجديدة لمعالجة المود الفاتح والداكن
-    else if (['ocean', 'twilight', 'coffee', 'sun', 'mono'].includes(baseId)) {
+    else if (['ocean', 'twilight', 'coffee', 'mono'].includes(baseId)) {
       finalTheme = isLightMode ? `${baseId}-light` : baseId;
     }
     
@@ -523,29 +519,70 @@ function StudentView() {
     return startDate;
   }
 
-  const allAssignmentsList = [];
+  const rawAssignmentsList = [];
   for (let w = 0; w < COURSE_SETTINGS.totalWeeks; w++) {
     const weekKey = `week_${w}`;
     if (activeScheduleData[weekKey]) {
       days.forEach((day, dIdx) => {
         const dayData = activeScheduleData[weekKey][day];
-        if (dayData && Array.isArray(dayData.dynamicEvents)) {
-          dayData.dynamicEvents.forEach(subj => {
-            if (subj.type === "واجب" || subj.type === "تقرير") {
-              const targetDate = getDateForDay(dIdx, w);
-              targetDate.setHours(23, 59, 59, 999);
-              const now = new Date();
-              const expiryTime = targetDate.getTime() + (24 * 60 * 60 * 1000); 
-              if (now.getTime() <= expiryTime) {
-                allAssignmentsList.push({ ...subj, targetDate, weekStr: weeks[w], dayStr: day });
-              }
+        
+        if (dayData) {
+          const targetDate = getDateForDay(dIdx, w);
+          targetDate.setHours(23, 59, 59, 999);
+          const now = new Date();
+          const expiryTime = targetDate.getTime() + (24 * 60 * 60 * 1000); 
+          
+          if (now.getTime() <= expiryTime) {
+            
+            // 1. جلب الأحداث المضافة عبر زر (+)
+            if (Array.isArray(dayData.dynamicEvents)) {
+              dayData.dynamicEvents.forEach(subj => {
+                if (subj.type === "واجب" || subj.type === "تقرير" || subj.type === "امتحان") {
+                  rawAssignmentsList.push({ ...subj, targetDate, weekStr: weeks[w], dayStr: day });
+                }
+              });
             }
-          });
+
+            // 2. جلب الامتحانات والواجبات من المواد الأساسية الثابتة التي تم تعديلها
+            if (dayData.fixedOverrides) {
+              const staticForDay = staticTimetable[day] || [];
+              staticForDay.forEach(staticSubj => {
+                const override = dayData.fixedOverrides[staticSubj.id];
+                if (override && !override.isHidden) {
+                  if (override.type === "واجب" || override.type === "تقرير" || override.type === "امتحان") {
+                    rawAssignmentsList.push({
+                      id: staticSubj.id,
+                      name: staticSubj.name,
+                      type: override.type,
+                      content: override.content || staticSubj.content || "",
+                      targetDate,
+                      weekStr: weeks[w],
+                      dayStr: day,
+                      imageUrl: override.imageUrl || null
+                    });
+                  }
+                }
+              });
+            }
+
+          }
         }
       });
     }
   }
-  allAssignmentsList.sort((a, b) => a.targetDate - b.targetDate);
+
+  // 🌟 نظام دمج وإلغاء التكرار الذكي 🌟
+  const uniqueAssignmentsMap = new Map();
+  rawAssignmentsList.forEach(item => {
+    // نعتبر الحدث مكرر إذا كان له نفس الاسم، والنوع، وتاريخ الاستحقاق
+    const uniqueKey = `${item.name}_${item.type}_${item.targetDate.getTime()}`;
+    if (!uniqueAssignmentsMap.has(uniqueKey)) {
+      uniqueAssignmentsMap.set(uniqueKey, item);
+    }
+  });
+
+  const finalAssignmentsList = Array.from(uniqueAssignmentsMap.values());
+  finalAssignmentsList.sort((a, b) => a.targetDate - b.targetDate);
 
   if (loading ) {
     const vBlocks = [
@@ -581,32 +618,7 @@ function StudentView() {
   return (
     <div className="main-container" style={{ width: '100%', maxWidth: '600px', margin: '0 auto', padding: '0 0px', paddingBottom: '100px', position: 'relative' }}>
       
-      {/* 🌟 الزر العائم للأدمن 🌟 */}
-      {userRole && userRole !== 'student' && activeTab === 'schedule' && selectedArchive === null && (
-        <button
-          onClick={() => setIsAdminMode(!isAdminMode)}
-          style={{
-            position: 'fixed',
-            bottom: showBottomNav ? '85px' : '25px',
-            right: '15px',
-            zIndex: 1000,
-            backgroundColor: isAdminMode ? '#ef4444' : 'var(--primary-color)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '50px',
-            padding: '12px 20px',
-            fontWeight: 'bold',
-            fontSize: '14px',
-            boxShadow: '0 6px 15px rgba(0,0,0,0.3)',
-            cursor: 'pointer',
-            transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            display: 'flex', alignItems: 'center', gap: '8px',
-            WebkitTapHighlightColor: 'transparent'
-          }}
-        >
-          {isAdminMode ? 'إغلاق التعديل ✕' : 'وضع التعديل 🛠️'}
-        </button>
-      )}
+    
 
       {userRole === 'super_admin' && activeTab === 'settings' && (
         <button
@@ -671,7 +683,9 @@ function StudentView() {
         activeGroup={activeGroup}
         setActiveGroup={setActiveGroup}
         userRole={userRole}
-      /> 
+        isAdminMode={isAdminMode}
+        setIsAdminMode={setIsAdminMode}
+      />
       
       {selectedArchive && (
          <div style={{ backgroundColor: 'rgba(255, 152, 0, 0.1)', color: '#ff9800', padding: '12px', textAlign: 'center', borderRadius: '12px', margin: '15px 15px 0 15px', fontWeight: 'bold', fontSize: '14px', border: '1px solid rgba(255, 152, 0, 0.3)' }}>
@@ -749,8 +763,17 @@ function StudentView() {
             </div>
           </div>
 
-          <div style={{ marginTop: '40px', paddingBottom: '20px' }}>
-            <div className="dots-container nav-dots-container" onMouseLeave={() => setHoveredWeek(null)} style={{ WebkitTapHighlightColor: 'transparent', display: 'flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'nowrap', gap: theme.startsWith('hearts') ? 'clamp(1px, 0.5vw, 4px)' : 'clamp(2px, 1.5vw, 8px)', marginBottom: '20px', width: '100%' }}>
+          <div style={{ marginTop: '40px', paddingBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
+            
+            {/* زر السابق (سهم يمين) */}
+            <button className="nav-btn" onClick={prevWeek} style={{ width: '38px', height: '38px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: '50%', WebkitTapHighlightColor: 'transparent' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+
+            {/* حاوية النقاط (عادت كما كانت 100% بدون أي قص أو إخفاء) */}
+            <div className="dots-container nav-dots-container" onMouseLeave={() => setHoveredWeek(null)} style={{ WebkitTapHighlightColor: 'transparent', display: 'flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'nowrap', gap: theme.startsWith('hearts') ? 'clamp(1px, 0.5vw, 4px)' : 'clamp(2px, 1.5vw, 8px)' }}>
               {weeks.map((_, index) => {
                 let scale = 1; let transitionDelay = '0s'; let opacity = 1; 
                 if (hoveredWeek !== null) {
@@ -780,7 +803,7 @@ function StudentView() {
                       transform: `scale(${scale})`, willChange: 'transform', backfaceVisibility: 'hidden', 
                       transition: 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease, border 0.3s ease', transitionDelay: transitionDelay, 
                       boxShadow: isHeartsTheme ? 'none' : (isOceanTheme ? bubbleStyle.boxShadow : ''), border: isHeartsTheme ? 'none' : (isOceanTheme ? bubbleStyle.border : ''), backgroundColor: isHeartsTheme ? 'transparent' : (isOceanTheme ? bubbleStyle.backgroundColor : ''),
-                      opacity: opacity, cursor: 'pointer', borderRadius: isHeartsTheme ? '0' : '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', width: size, height: size, backdropFilter: isOceanTheme ? bubbleStyle.backdropFilter : 'none'
+                      opacity: opacity, cursor: 'pointer', borderRadius: isHeartsTheme ? '0' : '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', width: size, height: size, backdropFilter: isOceanTheme ? bubbleStyle.backdropFilter : 'none', flexShrink: 0
                     }}
                   >
                     {isHeartsTheme && ( <svg width="100%" height="100%" viewBox="0 0 24 24" fill={currentWeek === index ? 'var(--dot-active)' : 'var(--dot-bg)'} style={{ transition: 'fill 0.3s ease' }}><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" /></svg> )}
@@ -790,10 +813,13 @@ function StudentView() {
               })}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 5px' }}>
-              <button className="nav-btn" onClick={prevWeek} style={{ WebkitTapHighlightColor: 'transparent', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}><span>&rarr;</span> <span>السابق</span></button>
-              <button className="nav-btn" onClick={nextWeek} style={{ WebkitTapHighlightColor: 'transparent', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}><span>التالي</span> <span>&larr;</span></button>
-            </div>
+            {/* زر التالي (سهم يسار) */}
+            <button className="nav-btn" onClick={nextWeek} style={{ width: '38px', height: '38px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: '50%', WebkitTapHighlightColor: 'transparent' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+
           </div>
         </>
       )}
@@ -815,9 +841,15 @@ function StudentView() {
 
       {activeTab === 'assignments' && (
         <AssignmentsTab 
-          allAssignmentsList={allAssignmentsList}
+          allAssignmentsList={finalAssignmentsList}
           selectedSubject={selectedSubject}
           setSelectedSubject={setSelectedSubject}
+          isAdminMode={isAdminMode}
+          showToast={showToast}
+          weeks={weeks}
+          days={days}
+          currentWeek={currentWeek}
+          courseSubjectsList={courseSubjectsList}
         />
       )}
 

@@ -420,26 +420,26 @@
   --border-line: rgba(255, 255, 255, 0.12);
 }
 
-/* ⚪⚫ ثيم أحادي (Monochrome-light) - أبيض ورمادي (فاتح) */
+/* ⚪⚫ ثيم أحادي (Monochrome-light) - أبيض ورمادي (فاتح) معدّل */
 [data-theme='mono-light'] {
-  --bg-gradient: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
-  --text-main: #404040;
-  --text-pure: #171717;
-  --text-details: #525252;
-  --text-muted: #737373;
-  --primary-color: #262626;
+  --bg-gradient: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%);
+  --text-main: #374151;
+  --text-pure: #111827;
+  --text-details: #4b5563;
+  --text-muted: #6b7280;
+  --primary-color: #010101;
   --card-bg-normal: #ffffff;
-  --card-bg-locked: #e5e5e5;
-  --card-bg-expanded: #d4d4d4;
-  --card-bg-hover: #f0f0f0;
-  --dot-bg: #d4d4d4;
-  --dot-active: #262626;
-  --subj-name: #171717;
-  --note-title: #404040;
-  --notify-1: #e5e5e5;
-  --notify-2: #ffffff;
-  --notify-3: #f5f5f5;
-  --border-line: rgba(0, 0, 0, 0.1);
+  --card-bg-locked: #e5e7eb;
+  --card-bg-expanded: #f3f4f6;
+  --card-bg-hover: #f9fafb;
+  --dot-bg: #d1d5db;
+  --dot-active: #1f2937;
+  --subj-name: #111827;
+  --note-title: #374151;
+  --notify-1: #e5e7eb;
+  --notify-2: #f3f4f6;
+  --notify-3: #ffffff;
+  --border-line: rgba(0, 0, 0, 0.15);
 }
 
 /* --- 🚫 تعطيل الخلفيات المتحركة بناءً على إعدادات المستخدم --- */
@@ -456,4 +456,66 @@ html.disable-bg-anim[data-theme='fox'] body::after,
 html.disable-bg-anim[data-theme='fox'] .main-container::after {
   display: none !important;
   animation: none !important;
+}
+/* ======================================================= */
+/* إصلاح تباين الألوان للثيم الأحادي (الأيقونات وأسهم التنقل) */
+/* ======================================================= */
+
+/* --- للثيم الفاتح (mono-light) --- */
+
+/* 1. إجبار أيقونات الهيدر غير المحددة لتكون داكنة لتظهر على الأبيض */
+[data-theme='mono-light'] header > div > button {
+  color: #171717 !important;
+}
+
+/* 2. الأيقونة المحددة فقط (التي تتحول خلفيتها لداكنة) يرجع لونها للأبيض */
+[data-theme='mono-light'] header > div > button[style*="background: var(--primary-color)"],
+[data-theme='mono-light'] header > div > button[style*="background-color: var(--primary-color)"] {
+  color: #ffffff !important;
+}
+
+/* 3. الشريط السفلي: الأزرار غير المحددة داكنة */
+[data-theme='mono-light'] div[style*="border-radius: 30px"][style*="position: fixed"] button {
+  color: #4b5563 !important;
+}
+
+/* 4. الشريط السفلي: الزر المحدد أسود قوي */
+[data-theme='mono-light'] div[style*="border-radius: 30px"][style*="position: fixed"] button[style*="rgba(150, 150, 150, 0.15)"] {
+  color: #000000 !important;
+}
+
+/* 5. إرجاع لون الحرف المحدد ليكون أبيض فوق الدائرة الداكنة في الكروبات */
+[data-theme='mono-light'] header div[style*="height: 32px"] button[style*="color: rgb(255, 255, 255)"],
+[data-theme='mono-light'] header div[style*="height: 32px"] button[style*="color: #fff"] {
+  color: #ffffff !important;
+}
+
+/* 6. أسهم التنقل بين الأسابيع داكنة */
+[data-theme='mono-light'] .nav-btn {
+  color: #171717 !important;
+  background: transparent !important;
+}
+
+/* 7. إجبار اسم الأسبوع في الجدول ليكون أبيض دائماً */
+[data-theme='mono-light'] .week-bar-box {
+  color: #ffffff !important;
+}
+
+/* --- للثيم الداكن (mono) --- */
+
+/* أسهم التنقل تصبح بيضاء وواضحة */
+[data-theme='mono'] .nav-btn {
+  color: #ffffff !important;
+  background: transparent !important;
+}
+
+/* إصلاح لون الحرف داخل دائرة الكروبات المحددة ليقرأ بوضوح (أسود على أبيض) */
+[data-theme='mono'] header div[style*="height: 32px"] button[style*="color: rgb(255, 255, 255)"],
+[data-theme='mono'] header div[style*="height: 32px"] button[style*="color: #fff"] {
+  color: #000000 !important;
+}
+
+/* اسم الأسبوع أبيض دائماً */
+[data-theme='mono'] .week-bar-box {
+  color: #ffffff !important;
 }

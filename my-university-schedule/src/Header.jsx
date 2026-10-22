@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef} from 'react';
 import { flushSync } from 'react-dom';
 import { getToken, onMessage } from 'firebase/messaging';
 import { messaging, database } from './firebase';
@@ -28,6 +28,12 @@ const ThemeIcon = () => (
 const ProfileIcon = () => (
   <svg width="18" height="18" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+  </svg>
+);
+
+const AdminEditIcon = () => (
+  <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#ffffff" strokeWidth={2.2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
   </svg>
 );
 
@@ -130,8 +136,7 @@ const GroupSelector = ({ activeGroup, setActiveGroup, userRole }) => {
   );
 };
 
-export default function Header({ currentTheme, onThemeSelect, activeTab, onTabChange, activeGroup, setActiveGroup, userRole }) {
-  const isLightVariantActive = currentTheme.includes('-light') || currentTheme === 'hearts' || currentTheme === 'light';
+export default function Header({ currentTheme, onThemeSelect, activeTab, onTabChange, activeGroup, setActiveGroup, userRole, isAdminMode, setIsAdminMode }) {  const isLightVariantActive = currentTheme.includes('-light') || currentTheme === 'hearts' || currentTheme === 'light';
   const [isNightMode, setIsNightMode] = useState(!isLightVariantActive);
 
   const [isSubscribed, setIsSubscribed] = useState(localStorage.getItem('fcm_subscribed') === 'true');
@@ -192,7 +197,6 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
       'ocean': 'ocean-light', 'ocean-light': 'ocean',
       'twilight': 'twilight-light', 'twilight-light': 'twilight',
       'hearts-dark': 'hearts', 'hearts': 'hearts-dark',
-      'sun': 'sun-light', 'sun-light': 'sun',
       'mono': 'mono-light', 'mono-light': 'mono',
       'dark': 'light', 'light': 'dark'
     };
@@ -252,6 +256,29 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
     transition.finished.then(() => {
       document.documentElement.classList.remove('dark-transition', 'light-transition');
     });
+  };
+
+  const adminModeTimer = useRef(null);
+
+  const handleProfilePressStart = () => {
+    if (userRole && userRole !== 'student') {
+      adminModeTimer.current = setTimeout(() => {
+        setIsAdminMode(true);
+        if (navigator.vibrate) navigator.vibrate(50);
+      }, 500); // تفعيل بعد نصف ثانية من الضغط المطول
+    }
+  };
+
+  const handleProfilePressEnd = () => {
+    if (adminModeTimer.current) clearTimeout(adminModeTimer.current);
+  };
+
+  const handleProfileClick = () => {
+    if (isAdminMode) {
+      setIsAdminMode(false); // ضغطة واحدة تلغي وضع التعديل
+    } else {
+      onTabChange(activeTab === 'profile' ? 'schedule' : 'profile'); // التنقل الطبيعي
+    }
   };
 
   return (
@@ -351,14 +378,21 @@ export default function Header({ currentTheme, onThemeSelect, activeTab, onTabCh
           </button>
 
           <button 
-            onClick={() => onTabChange(activeTab === 'profile' ? 'schedule' : 'profile')}
+            onClick={handleProfileClick}
+            onMouseDown={handleProfilePressStart}
+            onMouseUp={handleProfilePressEnd}
+            onMouseLeave={handleProfilePressEnd}
+            onTouchStart={handleProfilePressStart}
+            onTouchEnd={handleProfilePressEnd}
             style={{
-              background: activeTab === 'profile' ? 'var(--primary-color)' : 'transparent', color: activeTab === 'profile' ? 'var(--text-pure)' : 'var(--primary-color)',
+              background: isAdminMode ? '#ef4444' : (activeTab === 'profile' ? 'var(--primary-color)' : 'transparent'), 
+              color: (activeTab === 'profile' || isAdminMode) ? 'var(--text-pure)' : 'var(--primary-color)',
               border: 'none', cursor: 'pointer', padding: 0, borderRadius: '6px', transition: 'all 0.3s ease', position: 'relative', width: '32px', height: '32px', overflow: 'hidden', WebkitTapHighlightColor: 'transparent'
             }}
           >
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.4s', opacity: activeTab !== 'profile' ? 1 : 0, transform: activeTab !== 'profile' ? 'scale(1)' : 'scale(0.3)' }}><ProfileIcon /></div>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.4s', opacity: activeTab === 'profile' ? 1 : 0, transform: activeTab === 'profile' ? 'scale(1)' : 'scale(0.3)' }}><ScheduleIcon /></div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.4s', opacity: (activeTab !== 'profile' && !isAdminMode) ? 1 : 0, transform: (activeTab !== 'profile' && !isAdminMode) ? 'scale(1)' : 'scale(0.3)' }}><ProfileIcon /></div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.4s', opacity: isAdminMode ? 1 : 0, transform: isAdminMode ? 'scale(1)' : 'scale(0.3)' }}><AdminEditIcon /></div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.4s', opacity: (activeTab === 'profile' && !isAdminMode) ? 1 : 0, transform: (activeTab === 'profile' && !isAdminMode) ? 'scale(1)' : 'scale(0.3)' }}><ScheduleIcon /></div>
           </button>
         </div>
       </header>

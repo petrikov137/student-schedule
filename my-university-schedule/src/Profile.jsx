@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { COURSE_SETTINGS, staticTimetable } from './Schedule/ScheduleData/CourseConfig';
-import { ref, onValue, set, update  } from 'firebase/database';
+import { ref, onValue, set, update } from 'firebase/database';
 import { database, auth, googleProvider } from './firebase';
 import { signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
 
@@ -61,7 +61,7 @@ const EyeOffIcon = () => (
   </svg>
 );
 
-export default function Profile({ user, navigate, handleLogout, userAttendance, allScheduleData }) {
+export default function Profile({ user, navigate, handleLogout, userAttendance, allScheduleData, userRole }) {
   const [expandedType, setExpandedType] = useState(null);
   const [viewMode, setViewMode] = useState('flat'); 
   const [expandedSubject, setExpandedSubject] = useState({}); 
@@ -82,6 +82,38 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeletingRecord, setIsDeletingRecord] = useState(false);
+
+  // 🌟 إحصائيات السوبر أدمن 🌟
+  const [adminStats, setAdminStats] = useState({ total: 0, A: 0, B: 0, C: 0, D: 0, unassigned: 0 });
+  
+  // 🌟 تعديل: جلب الإحصائيات بشكل فوري (Real-time) بدلاً من مرة واحدة 🌟
+  useEffect(() => {
+    let unsubUsers = null;
+    if (userRole === 'super_admin') {
+      const usersRef = ref(database, 'users');
+      // استخدام onValue لتحديث العداد فوراً عند إضافة/حذف حساب أو تغيير شعبة
+      unsubUsers = onValue(usersRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const usersData = snapshot.val();
+          let stats = { total: 0, A: 0, B: 0, C: 0, D: 0, unassigned: 0 };
+          Object.values(usersData).forEach(u => {
+            stats.total++;
+            if (u.group === 'A') stats.A++;
+            else if (u.group === 'B') stats.B++;
+            else if (u.group === 'C') stats.C++;
+            else if (u.group === 'D') stats.D++;
+            else stats.unassigned++;
+          });
+          setAdminStats(stats);
+        } else {
+          setAdminStats({ total: 0, A: 0, B: 0, C: 0, D: 0, unassigned: 0 });
+        }
+      });
+    }
+    return () => {
+      if (unsubUsers) unsubUsers();
+    };
+  }, [userRole]);
 
   const handleDeleteGroupRecord = async () => {
     if (!user) return;
@@ -364,11 +396,22 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
           ) : (
             <div className="fade-switch" style={{ padding: '30px 24px', position: 'relative' }}>
               
-             
+              <button 
+                onClick={() => { setShowLoginView(false); setAuthError(''); }}
+                style={{
+                  position: 'absolute', top: '24px', right: '24px', background: 'var(--card-bg-locked)', border: '1px solid var(--border-line)',
+                  borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--text-pure)', cursor: 'pointer', transition: 'all 0.2s ease', WebkitTapHighlightColor: 'transparent'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--border-line)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--card-bg-locked)'}
+              >
+                <ArrowRightIcon />
+              </button>
 
               <div style={{ textAlign: 'center', marginBottom: '30px', marginTop: '10px' }}>
                 <h2 style={{ color: 'var(--text-pure)', margin: '0 0 8px 0', fontSize: '24px', letterSpacing: '0.5px' }}>Versa</h2>
-                <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '14px' }}>أهلاً بك في النظام </p>
+                <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '14px' }}>أهلاً بك مجدداً في نظام الإدارة</p>
               </div>
 
               {authError && (
@@ -454,7 +497,6 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
 
       ) : needsGroupSelection ? (
         
-        // 🌟 شاشة إجبار المستخدم الجديد على اختيار الشعبة 🌟
         <div className="day-card fade-switch" style={{ backgroundColor: 'var(--card-bg-normal)', padding: '40px 24px', textAlign: 'center', borderRadius: '20px', border: '1px solid var(--border-line)', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
           <h2 style={{ color: 'var(--text-pure)', marginBottom: '12px', fontSize: '22px' }}>مرحباً بك في النظام</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', marginBottom: '30px', padding: '0 10px' }}>
@@ -481,10 +523,6 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
         </div>
 
       ) : (
-
-        // ==========================================================
-        // --- واجهة المستخدم المسجل (الملف الشخصي الأساسي) ---
-        // ==========================================================
         <>
           <div className="day-card animate-wrapper" style={{ animationDelay: '0s', backgroundColor: 'var(--card-bg-normal)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-line)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
              
@@ -513,7 +551,6 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
                    </div>
                 </div>
 
-                {/* 🌟 زر تبديل الشعبة الأنيق 🌟 */}
                 <div 
                   onClick={cycleGroup}
                   style={{ 
@@ -545,6 +582,36 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
                    <span style={{ color: '#ef4444', fontSize: '18px', fontWeight: 'bold' }}>{activeTotalAbsent}</span>
                 </div>
              </div>
+             
+             {/* 🌟 إحصائيات السوبر أدمن المدمجة 🌟 */}
+             {userRole === 'super_admin' && (
+               <>
+                 <div style={{ width: '100%', height: '1px', backgroundColor: 'var(--border-line)', opacity: 0.5, margin: '5px 0' }} />
+                 
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.08)', padding: '12px 14px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid rgba(59, 130, 246, 0.2)', direction: 'rtl' }}>
+                       <span style={{ color: 'var(--text-details)', fontSize: '13px', fontWeight: 'bold' }}>عدد المستخدمين</span>
+                       <span style={{ color: '#3b82f6', fontSize: '18px', fontWeight: 'bold' }}>{adminStats.total}</span>
+                    </div>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', direction: 'ltr' }}>
+                       {['A', 'B', 'C', 'D'].map(g => (
+                          <div key={g} style={{ backgroundColor: 'var(--card-bg-locked)', padding: '10px 5px', borderRadius: '10px', textAlign: 'center', border: '1px solid var(--border-line)' }}>
+                             <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>{g}</div>
+                             <div style={{ color: 'var(--primary-color)', fontSize: '16px', fontWeight: 'bold' }}>{adminStats[g]}</div>
+                          </div>
+                       ))}
+                    </div>
+
+                    {adminStats.unassigned > 0 && (
+                      <div style={{ textAlign: 'center', color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>
+                        * {adminStats.unassigned} مستخدم لم يحددوا شعبتهم
+                      </div>
+                    )}
+                 </div>
+               </>
+             )}
+
           </div>
 
           {Object.keys(statsDetails).length > 0 ? (
@@ -763,7 +830,6 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
                   );
                 })}
               </div>
-              {/* زر حذف السجل */}
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: '25px', marginBottom: '10px' }}>
                 <button 
                   onClick={() => setIsDeleteModalOpen(true)}
@@ -786,7 +852,6 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
           )}
         </>
       )}
-      {/* نافذة تأكيد حذف السجل */}
       {isDeleteModalOpen && typeof document !== 'undefined' ? createPortal(
         <div 
           onClick={() => !isDeletingRecord && setIsDeleteModalOpen(false)}
@@ -831,4 +896,3 @@ export default function Profile({ user, navigate, handleLogout, userAttendance, 
     </div>
   );
 }
-

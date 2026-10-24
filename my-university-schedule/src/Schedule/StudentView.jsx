@@ -869,6 +869,7 @@ function StudentView() {
           handleLogout={handleLogout}
           userAttendance={userAttendance}
           allScheduleData={allScheduleData}
+           userRole={userRole}
         />
       )}
 

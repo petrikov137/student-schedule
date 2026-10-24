@@ -325,10 +325,14 @@ export default function Settings({
   const handleConfirmDelete = async () => {
     setIsProcessing(true);
     try {
+      const uid = auth.currentUser.uid;
+      
+      await set(ref(database, `users/${uid}`), null);
+      
       await deleteUser(auth.currentUser);
+      
       showToast('تم حذف الحساب نهائياً', 'success');
       closeModal();
-      // سيقوم المتنصت (onAuthStateChanged) في StudentView بتحويله لصفحة الدخول
     } catch (error) {
       if (error.code === 'auth/requires-recent-login') {
         showToast(' لأسباب أمنية، يرجى تسجيل الخروج والدخول مجدداً قبل حذف الحساب', 'error');

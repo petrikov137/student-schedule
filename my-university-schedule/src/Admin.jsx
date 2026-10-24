@@ -61,6 +61,40 @@ function Admin() {
   const [matLink, setMatLink] = useState("");
 
   const [toast, setToast] = useState({ show: false, message: '' });
+
+  // 🌟 حالات الإحصائيات والإدارة 🌟
+  const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
+  const [userStats, setUserStats] = useState({ total: 0, A: 0, B: 0, C: 0, D: 0, unassigned: 0 });
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+
+  const fetchUserStats = async () => {
+    setIsManagementModalOpen(true);
+    setIsLoadingStats(true);
+    try {
+      const usersSnapshot = await get(ref(database, 'users'));
+      if (usersSnapshot.exists()) {
+        const usersData = usersSnapshot.val();
+        let stats = { total: 0, A: 0, B: 0, C: 0, D: 0, unassigned: 0 };
+        
+        Object.values(usersData).forEach(user => {
+          stats.total++;
+          if (user.group === 'A') stats.A++;
+          else if (user.group === 'B') stats.B++;
+          else if (user.group === 'C') stats.C++;
+          else if (user.group === 'D') stats.D++;
+          else stats.unassigned++; // للطلاب الذين لم يختاروا شعبة بعد
+        });
+        
+        setUserStats(stats);
+      } else {
+        setUserStats({ total: 0, A: 0, B: 0, C: 0, D: 0, unassigned: 0 });
+      }
+    } catch (error) {
+      showNotification("❌ فشل جلب الإحصائيات");
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
   
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -446,9 +480,20 @@ function Admin() {
 
       <Header currentTheme={theme} onThemeSelect={handleThemeSelect} activeTab={activeTab} onTabChange={setActiveTab} />
       
-      <h1 style={{ textAlign: 'center', color: 'var(--text-pure)', marginBottom: '20px', marginTop: '10px' }}>
-        {activeTab === 'schedule' ? 'لوحة التحكم - الجدول' : activeTab === 'materials' ? 'لوحة التحكم - الملازم' : 'لوحة التحكم - الواجبات'}
-      </h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginBottom: '20px', marginTop: '10px', position: 'relative' }}>
+        <h1 style={{ margin: 0, color: 'var(--text-pure)', fontSize: '22px' }}>
+          {activeTab === 'schedule' ? 'لوحة التحكم - الجدول' : activeTab === 'materials' ? 'لوحة التحكم - الملازم' : 'لوحة التحكم - الواجبات'}
+        </h1>
+        <button 
+          onClick={fetchUserStats}
+          style={{
+            backgroundColor: 'var(--primary-color)', color: '#fff', border: 'none', borderRadius: '10px',
+            padding: '6px 12px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', WebkitTapHighlightColor: 'transparent'
+          }}
+        >
+          الإحصائيات 📊
+        </button>
+      </div>
 
       {/* ===================== قسم الجدول (الأساسي) ===================== */}
       {activeTab === 'schedule' && (
@@ -695,6 +740,74 @@ function Admin() {
           <path d="M12 19V5M5 12l7-7 7 7"/>
         </svg>
       </button>
+
+      {/* 🌟 نافذة إحصائيات النظام 🌟 */}
+      {isManagementModalOpen && (
+        <div 
+          onClick={() => setIsManagementModalOpen(false)}
+          style={{
+            position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+            backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+            zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px', boxSizing: 'border-box', direction: 'rtl'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'var(--card-bg-normal)', width: '100%', maxWidth: '350px',
+              borderRadius: '20px', padding: '25px', boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+              border: '1px solid var(--border-line)', display: 'flex', flexDirection: 'column', gap: '15px'
+            }}
+          >
+            <h2 style={{ margin: '0 0 10px 0', color: 'var(--text-pure)', textAlign: 'center', fontSize: '20px' }}>إحصائيات النظام 📊</h2>
+            
+            {isLoadingStats ? (
+              <div style={{ textAlign: 'center', color: 'var(--primary-color)', padding: '20px', fontWeight: 'bold' }}>جاري الحساب...</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ backgroundColor: 'var(--card-bg-locked)', padding: '12px 15px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', border: '1px solid var(--border-line)' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 'bold' }}>إجمالي الطلاب المسجلين:</span>
+                  <span style={{ color: 'var(--primary-color)', fontWeight: 'bold', fontSize: '16px' }}>{userStats.total}</span>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div style={{ backgroundColor: 'var(--card-bg-locked)', padding: '12px', borderRadius: '12px', textAlign: 'center', border: '1px solid var(--border-line)' }}>
+                    <div style={{ color: 'var(--text-pure)', fontWeight: 'bold', marginBottom: '5px' }}>شعبة A</div>
+                    <div style={{ color: '#10b981', fontWeight: 'bold', fontSize: '18px' }}>{userStats.A}</div>
+                  </div>
+                  <div style={{ backgroundColor: 'var(--card-bg-locked)', padding: '12px', borderRadius: '12px', textAlign: 'center', border: '1px solid var(--border-line)' }}>
+                    <div style={{ color: 'var(--text-pure)', fontWeight: 'bold', marginBottom: '5px' }}>شعبة B</div>
+                    <div style={{ color: '#3b82f6', fontWeight: 'bold', fontSize: '18px' }}>{userStats.B}</div>
+                  </div>
+                  <div style={{ backgroundColor: 'var(--card-bg-locked)', padding: '12px', borderRadius: '12px', textAlign: 'center', border: '1px solid var(--border-line)' }}>
+                    <div style={{ color: 'var(--text-pure)', fontWeight: 'bold', marginBottom: '5px' }}>شعبة C</div>
+                    <div style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '18px' }}>{userStats.C}</div>
+                  </div>
+                  <div style={{ backgroundColor: 'var(--card-bg-locked)', padding: '12px', borderRadius: '12px', textAlign: 'center', border: '1px solid var(--border-line)' }}>
+                    <div style={{ color: 'var(--text-pure)', fontWeight: 'bold', marginBottom: '5px' }}>شعبة D</div>
+                    <div style={{ color: '#8b5cf6', fontWeight: 'bold', fontSize: '18px' }}>{userStats.D}</div>
+                  </div>
+                </div>
+
+                {userStats.unassigned > 0 && (
+                  <div style={{ textAlign: 'center', color: '#ef4444', fontSize: '12px', marginTop: '5px' }}>
+                    * يوجد {userStats.unassigned} طلاب لم يحددوا شعبتهم بعد.
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button 
+              onClick={() => setIsManagementModalOpen(false)}
+              style={{ width: '100%', backgroundColor: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-line)', borderRadius: '12px', padding: '12px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}
+            >
+              إغلاق
+            </button>
+          </div>
+        </div>
+      )}
+      
       <ExamScheduleAdmin showNotification={showNotification} />
     </div>
   )
